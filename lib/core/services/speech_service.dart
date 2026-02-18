@@ -22,6 +22,8 @@ class SpeechService {
 
   bool _isInitialized = false;
   bool _isListening = false;
+  bool _userRequestedStop = false;
+  String _localeId = 'ar-SA';
   Function(String)? _onResultCallback;
   Function()? _onCancelCallback;
 
@@ -32,12 +34,15 @@ class SpeechService {
     _logController.add(message);
   }
 
-  void _handleStop() {
+  void _handleStop({bool userRequested = false}) {
     if (_isListening) {
       _isListening = false;
-      _onCancelCallback?.call();
-      _onResultCallback = null;
-      _onCancelCallback = null;
+      if (userRequested || _userRequestedStop) {
+        _onCancelCallback?.call();
+        _onResultCallback = null;
+        _onCancelCallback = null;
+        _userRequestedStop = false;
+      }
     }
   }
 
@@ -55,13 +60,21 @@ class SpeechService {
       _log('Initializing speech recognition...');
       _isInitialized = await _speech.initialize(
         onError: (error) {
-          _log('ERROR: ${error.errorMsg} (permanent: ${error.permanent})');
-          _handleStop();
+          _log('ERROR: ${error.errorMsg}');
+          if (!error.permanent) {
+            _restartListening();
+          } else {
+            _handleStop();
+          }
         },
         onStatus: (status) {
           _log('Status: $status');
           if (status == 'done' || status == 'notListening') {
-            _handleStop();
+            if (!_userRequestedStop) {
+              _restartListening();
+            } else {
+              _handleStop();
+            }
           }
         },
       );
@@ -73,7 +86,7 @@ class SpeechService {
             .where((l) => l.localeId.startsWith('ar'))
             .toList();
         _log(
-          'Arabic locales: ${arabicLocales.map((l) => '${l.localeId} (${l.name})').join(', ')}',
+          'Arabic locales: ${arabicLocales.map((l) => '${l.localeId}').join(', ')}',
         );
       } else {
         _log('ERROR: Speech init FAILED');
@@ -83,6 +96,36 @@ class SpeechService {
     } catch (e) {
       _log('INIT ERROR: $e');
       return false;
+    }
+  }
+
+  Future<void> _restartListening() async {
+    if (_userRequestedStop) return;
+
+    _log('Auto-restarting listen...');
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    if (_userRequestedStop || _onResultCallback == null) return;
+
+    try {
+      _isListening = true;
+      await _speech.listen(
+        onResult: (result) {
+          final words = result.recognizedWords;
+          if (words.isNotEmpty) {
+            _log('Result: "$words"');
+            _onResultCallback?.call(words);
+          }
+        },
+        listenFor: const Duration(minutes: 10),
+        pauseFor: const Duration(seconds: 10),
+        partialResults: true,
+        cancelOnError: true,
+        localeId: _localeId,
+      );
+    } catch (e) {
+      _log('RESTART ERROR: $e');
+      _handleStop();
     }
   }
 
@@ -96,22 +139,20 @@ class SpeechService {
       return;
     }
 
-    if (_isListening) {
-      _log('Already listening, stopping first...');
-      await stop();
-    }
+    _localeId = localeId;
+    _userRequestedStop = false;
+    _onResultCallback = onResult;
+    _onCancelCallback = onCancel;
+    _isListening = true;
+
+    _log('Starting continuous listen (locale: $localeId)');
 
     try {
-      _log('Starting listen (locale: $localeId)');
-      _isListening = true;
-      _onResultCallback = onResult;
-      _onCancelCallback = onCancel;
-
       await _speech.listen(
         onResult: (result) {
           final words = result.recognizedWords;
           if (words.isNotEmpty) {
-            _log('Result: "$words" (final: ${result.finalResult})');
+            _log('Result: "$words"');
             _onResultCallback?.call(words);
           }
         },
@@ -119,7 +160,7 @@ class SpeechService {
         pauseFor: const Duration(seconds: 10),
         partialResults: true,
         cancelOnError: true,
-        localeId: localeId,
+        localeId: _localeId,
       );
     } catch (e) {
       _log('LISTEN ERROR: $e');
@@ -128,12 +169,12 @@ class SpeechService {
   }
 
   Future<void> stop() async {
-    if (!_isListening) return;
+    _userRequestedStop = true;
+    _log('User requested stop...');
 
     try {
-      _log('Stopping...');
       await _speech.stop();
-      _handleStop();
+      _handleStop(userRequested: true);
       _log('Stopped');
     } catch (e) {
       _log('STOP ERROR: $e');

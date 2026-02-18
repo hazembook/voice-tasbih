@@ -6,6 +6,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:voice_tasbih/core/services/speech_service.dart';
 import 'package:voice_tasbih/features/counter/application/counter_notifier.dart';
 
+class _DhikrOption {
+  final String name;
+  final String arabic;
+  final List<String> patterns;
+
+  const _DhikrOption({
+    required this.name,
+    required this.arabic,
+    required this.patterns,
+  });
+}
+
 class CounterScreen extends ConsumerStatefulWidget {
   const CounterScreen({super.key});
 
@@ -19,14 +31,37 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   StreamSubscription<String>? _logSubscription;
   bool _isSpeechInitialized = false;
 
-  final List<Map<String, String>> _dhikrOptions = [
-    {'name': 'Subhan Allah', 'arabic': 'سبحان الله'},
-    {'name': 'Alhamdulillah', 'arabic': 'الحمد لله'},
-    {'name': 'Allahu Akbar', 'arabic': 'الله أكبر'},
-    {'name': 'La ilaha illallah', 'arabic': 'لا إله إلا الله'},
+  final List<_DhikrOption> _dhikrOptions = const [
+    _DhikrOption(
+      name: 'Subhan Allah',
+      arabic: 'سبحان الله',
+      patterns: ['سبحان الله', 'سبحان'],
+    ),
+    _DhikrOption(
+      name: 'Alhamdulillah',
+      arabic: 'الحمد لله',
+      patterns: ['الحمد لله', 'الحمد'],
+    ),
+    _DhikrOption(
+      name: 'Allahu Akbar',
+      arabic: 'الله أكبر',
+      patterns: ['الله اكبر', 'الله أكبر', 'اكبر'],
+    ),
+    _DhikrOption(
+      name: 'La ilaha illallah',
+      arabic: 'لا إله إلا الله',
+      patterns: ['لا اله الا الله', 'لا إله إلا الله', 'لا اله'],
+    ),
   ];
 
   final List<int> _targetOptions = [33, 100, 1000];
+
+  _DhikrOption _getCurrentDhikr(String phrase) {
+    return _dhikrOptions.firstWhere(
+      (d) => d.arabic == phrase,
+      orElse: () => _dhikrOptions.first,
+    );
+  }
 
   @override
   void initState() {
@@ -106,7 +141,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
         onCancel: () {
           if (mounted) {
             counterNotifier.setListening(false);
-            _addLog('Mic OFF (auto)');
+            _addLog('Mic OFF');
           }
         },
       );
@@ -117,19 +152,19 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
     _addLog('Heard: "$text"');
 
     final counterState = ref.read(counterProvider);
-    final currentPhrase = counterState.phrase;
+    final currentDhikr = _getCurrentDhikr(counterState.phrase);
 
-    final lowerText = text.toLowerCase();
-    final lowerPhrase = currentPhrase.toLowerCase();
+    for (final pattern in currentDhikr.patterns) {
+      if (text.contains(pattern)) {
+        notifier.increment();
+        _addLog('MATCH -> Count +1');
 
-    if (lowerText.contains(lowerPhrase)) {
-      notifier.increment();
-      _addLog('MATCH -> Count +1');
-
-      final newState = ref.read(counterProvider);
-      if (newState.isTargetReached) {
-        _addLog('TARGET REACHED! Stopping...');
-        _stopListening();
+        final newState = ref.read(counterProvider);
+        if (newState.isTargetReached) {
+          _addLog('TARGET REACHED! Stopping...');
+          _stopListening();
+        }
+        return;
       }
     }
   }
@@ -154,11 +189,11 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: _dhikrOptions.map((dhikr) {
-              final isSelected = currentState.phrase == dhikr['arabic'];
+              final isSelected = currentState.phrase == dhikr.arabic;
               return ListTile(
-                title: Text(dhikr['name']!),
+                title: Text(dhikr.name),
                 subtitle: Text(
-                  dhikr['arabic']!,
+                  dhikr.arabic,
                   style: const TextStyle(fontSize: 18),
                   textAlign: TextAlign.right,
                 ),
@@ -166,10 +201,10 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
                     ? const Icon(Icons.check, color: Colors.green)
                     : null,
                 onTap: () {
-                  counterNotifier.setPhrase(dhikr['arabic']!);
+                  counterNotifier.setPhrase(dhikr.arabic);
                   counterNotifier.reset();
                   Navigator.pop(context);
-                  _addLog('Dhikr changed to: ${dhikr['name']}');
+                  _addLog('Dhikr changed to: ${dhikr.name}');
                 },
               );
             }).toList(),
