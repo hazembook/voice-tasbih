@@ -7,7 +7,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 part 'speech_service.g.dart';
 
 @riverpod
-SpeechService speechService(SpeechServiceRef ref) {
+SpeechService speechService(Ref ref) {
   return SpeechService();
 }
 
