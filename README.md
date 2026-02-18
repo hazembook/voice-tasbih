@@ -11,11 +11,11 @@
 > 📖 عن النبي ﷺ: «أَيَعْجِزُ أَحَدُكُمْ أَنْ يَكْسِبَ كُلَّ يَوْمٍ أَلْفَ حَسَنَةٍ؟» قَالَ: «يُسَبِّحُ مِائَةَ تَسْبِيحَةٍ، فَيُكْتَبُ لَهُ أَلْفُ حَسَنَةٍ» [صحيح مسلم]
 
 <p align="center">
-  <img src="docs/screenshots/Screenshot_20260218_121320_com.tasbih.voice_tasbih.jpg" width="160" alt="Main screen">
-  <img src="docs/screenshots/Screenshot_20260218_121326_com.tasbih.voice_tasbih.jpg" width="160" alt="Dhikr selection">
-  <img src="docs/screenshots/Screenshot_20260218_121331_com.tasbih.voice_tasbih.jpg" width="160" alt="Listening">
-  <img src="docs/screenshots/Screenshot_20260218_121353_com.tasbih.voice_tasbih.jpg" width="160" alt="Counting">
-  <img src="docs/screenshots/Screenshot_20260218_121427_com.tasbih.voice_tasbih.jpg" width="160" alt="Target reached">
+  <img src="docs/screenshots/Screenshot_20260218_162914_com.hazembook.dhakir.jpg" width="160" alt="Main screen">
+  <img src="docs/screenshots/Screenshot_20260218_162925_com.hazembook.dhakir.jpg" width="160" alt="Dhikr selection">
+  <img src="docs/screenshots/Screenshot_20260218_163125_com.hazembook.dhakir.jpg" width="160" alt="Listening">
+  <img src="docs/screenshots/Screenshot_20260218_163218_com.hazembook.dhakir.jpg" width="160" alt="Counting">
+  <img src="docs/screenshots/Screenshot_20260218_163307_com.hazembook.dhakir.jpg" width="160" alt="Target reached">
 </p>
 
 ## Features
