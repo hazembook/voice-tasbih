@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Large model files - download separately (see README.md)
+assets/models/*.zip
+assets/models/*.onnx
+assets/models/*.tar.bz2
