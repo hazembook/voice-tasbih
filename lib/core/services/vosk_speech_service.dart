@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:io';
 
-import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:vosk_flutter_service/vosk_flutter.dart' as vosk;
 
@@ -38,33 +36,18 @@ class VoskSpeechService {
     _logController.add(message);
   }
 
-  Future<String> get modelPath async {
-    if (_modelPath != null) return _modelPath!;
-    final appDir = await getApplicationDocumentsDirectory();
-    _modelPath = '${appDir.path}/vosk-model-ar-mgb2-0.4';
-    return _modelPath!;
-  }
-
-  Future<bool> isModelReady() async {
-    try {
-      final path = await modelPath;
-      return Directory(path).exists();
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<bool> copyModelFromAssets() async {
+  Future<String?> _loadModelFromAssets() async {
     try {
       _log('Loading model from assets...');
       final path = await vosk.ModelLoader().loadFromAssets(
         'assets/models/vosk-model-ar-mgb2-0.4.zip',
       );
       _log('Model loaded to: $path');
-      return true;
+      _modelPath = path;
+      return path;
     } catch (e) {
       _log('Model load error: $e');
-      return false;
+      return null;
     }
   }
 
@@ -72,16 +55,16 @@ class VoskSpeechService {
     try {
       _log('Initializing Vosk...');
 
-      if (!await isModelReady()) {
-        if (!await copyModelFromAssets()) {
+      if (_modelPath == null) {
+        final path = await _loadModelFromAssets();
+        if (path == null) {
           _log('Failed to load model');
           return false;
         }
       }
 
       _log('Creating recognizer...');
-      final path = await modelPath;
-      final model = await _vosk.createModel(path);
+      final model = await _vosk.createModel(_modelPath!);
 
       _recognizer = await _vosk.createRecognizer(
         model: model,
@@ -131,9 +114,7 @@ class VoskSpeechService {
       await _voskSpeechService!.start();
     } catch (e) {
       _log('Listen error: $e');
-    } finally {
       _isListening = false;
-      _log('Stopped');
       onCancel?.call();
     }
   }

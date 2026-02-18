@@ -209,7 +209,7 @@ return $default(_that.count,_that.target,_that.phrase,_that.isListening);case _:
 
 
 class _CounterState extends CounterState {
-  const _CounterState({this.count = 0, this.target = 33, this.phrase = 'Subhan Allah', this.isListening = false}): super._();
+  const _CounterState({this.count = 0, this.target = 33, this.phrase = 'سبحان الله', this.isListening = false}): super._();
   
 
 @override@JsonKey() final  int count;
