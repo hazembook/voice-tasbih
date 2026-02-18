@@ -29,6 +29,7 @@ class OfflineSpeechService {
 
   final AudioRecorder _audioRecorder = AudioRecorder();
   sherpa.OfflineRecognizer? _recognizer;
+  sherpa.VoiceActivityDetector? _vad;
 
   bool _isInitialized = false;
   bool _isListening = false;
@@ -36,6 +37,7 @@ class OfflineSpeechService {
 
   static const int _sampleRate = 16000;
   String? _modelDir;
+  String? _modelsPath;
 
   bool get isInitialized => _isInitialized;
   bool get isListening => _isListening;
@@ -44,27 +46,24 @@ class OfflineSpeechService {
     _logController.add(message);
   }
 
-  Future<String> get _modelsPath async {
+  Future<String> get modelsPath async {
+    if (_modelsPath != null) return _modelsPath!;
     final appDir = await getApplicationDocumentsDirectory();
-    return '${appDir.path}/sherpa_models';
+    _modelsPath = '${appDir.path}/sherpa_models';
+    return _modelsPath!;
   }
 
   Future<bool> isModelReady() async {
     try {
-      final modelsPath = await _modelsPath;
-      final dir = Directory('$modelsPath/whisper-tiny');
+      final path = await modelsPath;
+      final dir = Directory('$path/whisper-tiny');
 
       if (!await dir.exists()) return false;
 
-      final tokensFile = File('${dir.path}/tokens.txt');
-      final encoderFile = File('${dir.path}/tiny-encoder.onnx');
-      final decoderFile = File('${dir.path}/tiny-decoder.onnx');
-      final vadFile = File('$modelsPath/silero_vad.onnx');
-
-      return await tokensFile.exists() &&
-          await encoderFile.exists() &&
-          await decoderFile.exists() &&
-          await vadFile.exists();
+      return await File('${dir.path}/tokens.txt').exists() &&
+          await File('${dir.path}/tiny-encoder.onnx').exists() &&
+          await File('${dir.path}/tiny-decoder.onnx').exists() &&
+          await File('$path/silero_vad.onnx').exists();
     } catch (e) {
       return false;
     }
@@ -72,8 +71,8 @@ class OfflineSpeechService {
 
   Future<bool> copyAssetsToFs() async {
     try {
-      final modelsPath = await _modelsPath;
-      final whisperDir = Directory('$modelsPath/whisper-tiny');
+      final path = await modelsPath;
+      final whisperDir = Directory('$path/whisper-tiny');
 
       if (await whisperDir.exists()) {
         await whisperDir.delete(recursive: true);
@@ -82,7 +81,6 @@ class OfflineSpeechService {
 
       _log('Copying model from assets...');
 
-      // Copy whisper model files
       final files = [
         ('whisper-tiny/tokens.txt', 'tokens.txt'),
         ('whisper-tiny/tiny-encoder.onnx', 'tiny-encoder.onnx'),
@@ -91,15 +89,13 @@ class OfflineSpeechService {
       ];
 
       for (final (assetPath, targetName) in files) {
-        _log('Copying $targetName...');
         final data = await rootBundle.load('assets/models/$assetPath');
         final bytes = data.buffer.asUint8List();
         final file = File('${whisperDir.path}/$targetName');
         await file.writeAsBytes(bytes);
-        _log('OK: $targetName (${bytes.length} bytes)');
       }
 
-      _log('Model copied successfully');
+      _log('Model copied');
       return true;
     } catch (e) {
       _log('Copy error: $e');
@@ -111,21 +107,20 @@ class OfflineSpeechService {
     try {
       _log('Initializing...');
 
-      final modelsPath = await _modelsPath;
-      _modelDir = '$modelsPath/whisper-tiny';
+      final path = await modelsPath;
+      _modelDir = '$path/whisper-tiny';
 
-      // Copy from assets if not already done
       if (!await isModelReady()) {
-        _log('Extracting model from assets...');
-        final copied = await copyAssetsToFs();
-        if (!copied) {
-          _log('Failed to extract model');
+        _log('Extracting model...');
+        if (!await copyAssetsToFs()) {
+          _log('Failed to extract');
           return false;
         }
       }
 
       sherpa.initBindings();
 
+      // Create Whisper recognizer
       final config = sherpa.OfflineRecognizerConfig(
         model: sherpa.OfflineModelConfig(
           whisper: sherpa.OfflineWhisperModelConfig(
@@ -144,6 +139,25 @@ class OfflineSpeechService {
 
       _recognizer = sherpa.OfflineRecognizer(config);
 
+      // Create VAD
+      final vadConfig = sherpa.VadModelConfig(
+        sileroVad: sherpa.SileroVadModelConfig(
+          model: '$path/silero_vad.onnx',
+          threshold: 0.35,
+          minSilenceDuration: 0.8,
+          minSpeechDuration: 0.2,
+          maxSpeechDuration: 30.0,
+        ),
+        sampleRate: _sampleRate,
+        numThreads: 2,
+        debug: false,
+      );
+
+      _vad = sherpa.VoiceActivityDetector(
+        config: vadConfig,
+        bufferSizeInSeconds: 30.0,
+      );
+
       _isInitialized = true;
       _log('Init OK');
       return true;
@@ -158,13 +172,14 @@ class OfflineSpeechService {
     required Function(String) onResult,
     Function()? onCancel,
   }) async {
-    if (!_isInitialized || _recognizer == null) {
+    if (!_isInitialized || _recognizer == null || _vad == null) {
       _log('Not initialized');
       return;
     }
 
     _stopRequested = false;
     _isListening = true;
+    _vad?.reset();
     _log('Listening...');
 
     try {
@@ -181,10 +196,6 @@ class OfflineSpeechService {
         ),
       );
 
-      // Process in 2-second chunks
-      final chunkSize = _sampleRate * 2;
-      final buffer = <double>[];
-
       await for (final chunk in stream) {
         if (_stopRequested) break;
 
@@ -192,20 +203,27 @@ class OfflineSpeechService {
         final level = _calculateLevel(samples);
         _soundLevelController.add(level);
 
-        // Add to buffer
-        buffer.addAll(samples);
+        // Feed to VAD
+        _vad!.acceptWaveform(samples);
 
-        // Process when buffer is full
-        if (buffer.length >= chunkSize) {
-          final toProcess = Float32List.fromList(buffer.sublist(0, chunkSize));
-          buffer.removeRange(0, chunkSize);
-          _processChunk(toProcess, onResult);
+        // Process any completed speech segments
+        while (!_vad!.isEmpty()) {
+          final segment = _vad!.front();
+          if (segment.samples.isNotEmpty) {
+            _processSegment(segment.samples, onResult);
+          }
+          _vad!.pop();
         }
       }
 
-      // Process remaining
-      if (buffer.isNotEmpty) {
-        _processChunk(Float32List.fromList(buffer), onResult);
+      // Flush remaining
+      _vad?.flush();
+      while (_vad != null && !_vad!.isEmpty()) {
+        final segment = _vad!.front();
+        if (segment.samples.isNotEmpty) {
+          _processSegment(segment.samples, onResult);
+        }
+        _vad!.pop();
       }
 
       await _audioRecorder.stop();
@@ -236,7 +254,7 @@ class OfflineSpeechService {
     return (sum / samples.length).clamp(0.0, 1.0);
   }
 
-  void _processChunk(Float32List samples, Function(String) onResult) {
+  void _processSegment(Float32List samples, Function(String) onResult) {
     if (_recognizer == null) return;
 
     try {
@@ -247,8 +265,8 @@ class OfflineSpeechService {
       stream.free();
 
       final text = result.text.trim();
-      _log('Result: "$text" (${samples.length} samples)');
       if (text.isNotEmpty) {
+        _log('Heard: "$text"');
         onResult(text);
       }
     } catch (e) {
@@ -267,6 +285,7 @@ class OfflineSpeechService {
 
   void dispose() {
     _recognizer?.free();
+    _vad?.free();
     _logController.close();
     _soundLevelController.close();
   }
