@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -55,22 +54,21 @@ class OfflineSpeechService {
     try {
       final modelsPath = await _modelsPath;
       final dir = Directory('$modelsPath/whisper-tiny');
+
+      if (!await dir.exists()) {
+        _log('Model directory not found');
+        return false;
+      }
+
       final tokensFile = File('${dir.path}/tokens.txt');
       final encoderFile = File('${dir.path}/tiny-encoder.onnx');
       final decoderFile = File('${dir.path}/tiny-decoder.onnx');
       final vadFile = File('$modelsPath/silero_vad.onnx');
 
-      final tokensExists = await tokensFile.exists();
-      final encoderExists = await encoderFile.exists();
-      final decoderExists = await decoderFile.exists();
-      final vadExists = await vadFile.exists();
-
-      if (!tokensExists) _log('Missing: tokens.txt');
-      if (!encoderExists) _log('Missing: tiny-encoder.onnx');
-      if (!decoderExists) _log('Missing: tiny-decoder.onnx');
-      if (!vadExists) _log('Missing: silero_vad.onnx');
-
-      return tokensExists && encoderExists && decoderExists && vadExists;
+      return await tokensFile.exists() &&
+          await encoderFile.exists() &&
+          await decoderFile.exists() &&
+          await vadFile.exists();
     } catch (e) {
       _log('Check error: $e');
       return false;
@@ -85,47 +83,63 @@ class OfflineSpeechService {
       final modelsPath = await _modelsPath;
       final whisperDir = Directory('$modelsPath/whisper-tiny');
 
-      // Clean up old files
       if (await whisperDir.exists()) {
         await whisperDir.delete(recursive: true);
       }
       await whisperDir.create(recursive: true);
 
-      // Download Whisper model
-      onStatus?.call('Downloading Whisper model...');
-      const whisperUrl =
-          'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-tiny.tar.bz2';
-      final whisperTar = File('$modelsPath/whisper-tiny.tar.bz2');
+      const hfBaseUrl =
+          'https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny/resolve/main';
 
-      var success = await _downloadFile(whisperUrl, whisperTar, onProgress);
-      if (!success) return -1;
+      final files = [
+        _ModelFile('tokens.txt', '$hfBaseUrl/tokens.txt'),
+        _ModelFile('tiny-encoder.onnx', '$hfBaseUrl/tiny-encoder.onnx'),
+        _ModelFile('tiny-decoder.onnx', '$hfBaseUrl/tiny-decoder.onnx'),
+      ];
 
-      onStatus?.call('Extracting Whisper model...');
-      onProgress?.call(-1);
-      success = await _extractTar(whisperTar, modelsPath);
-      if (!success) return -1;
-      await whisperTar.delete();
+      final totalFiles = files.length + 1;
+      var completedFiles = 0;
 
-      // Download VAD model
-      onStatus?.call('Downloading VAD model...');
+      for (final file in files) {
+        onStatus?.call('Downloading ${file.name}...');
+        _log('Downloading: ${file.url}');
+        final targetFile = File('${whisperDir.path}/${file.name}');
+        final success = await _downloadFile(file.url, targetFile, (p) {
+          onProgress?.call((completedFiles + p) / totalFiles);
+        });
+        if (!success) {
+          _log('Failed: ${file.name}');
+          return -1;
+        }
+        completedFiles++;
+        _log('OK: ${file.name}');
+      }
+
+      onStatus?.call('Downloading VAD...');
       const vadUrl =
           'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx';
       final vadFile = File('$modelsPath/silero_vad.onnx');
-      success = await _downloadFile(vadUrl, vadFile, onProgress);
-      if (!success) return -1;
+      final vadSuccess = await _downloadFile(vadUrl, vadFile, (p) {
+        onProgress?.call((completedFiles + p) / totalFiles);
+      });
+      if (!vadSuccess) {
+        _log('Failed: VAD');
+        return -1;
+      }
+      _log('OK: VAD');
 
-      // Verify files
       onStatus?.call('Verifying...');
-      final downloaded = await isModelDownloaded();
-      if (!downloaded) {
+      onProgress?.call(1.0);
+
+      if (!await isModelDownloaded()) {
         _log('Verification failed');
         return -1;
       }
 
-      onStatus?.call('Model ready');
+      onStatus?.call('Ready');
       return 1.0;
     } catch (e) {
-      _log('Download error: $e');
+      _log('Error: $e');
       return -1;
     }
   }
@@ -141,7 +155,7 @@ class OfflineSpeechService {
       final response = await request.close();
 
       if (response.statusCode != 200) {
-        _log('Download failed: ${response.statusCode}');
+        _log('HTTP ${response.statusCode}');
         return false;
       }
 
@@ -157,74 +171,25 @@ class OfflineSpeechService {
       await raf.close();
       return true;
     } catch (e) {
-      _log('Download error: $e');
-      return false;
-    }
-  }
-
-  Future<bool> _extractTar(File tarFile, String targetDir) async {
-    try {
-      _log('Reading archive...');
-      final bytes = await tarFile.readAsBytes();
-
-      _log('Decompressing...');
-      final tarBytes = BZip2Decoder().decodeBytes(bytes);
-
-      _log('Extracting files...');
-      final archive = TarDecoder().decodeBytes(tarBytes);
-
-      final targetDirectory = Directory('$targetDir/whisper-tiny');
-      if (!await targetDirectory.exists()) {
-        await targetDirectory.create(recursive: true);
-      }
-
-      var fileCount = 0;
-      for (final file in archive) {
-        var filePath = file.name;
-
-        // Skip the top-level directory (e.g., sherpa-onnx-whisper-tiny/)
-        final firstSlash = filePath.indexOf('/');
-        if (firstSlash != -1) {
-          filePath = filePath.substring(firstSlash + 1);
-        }
-        if (filePath.isEmpty) continue;
-
-        final fullPath = '${targetDirectory.path}/$filePath';
-        if (file.isFile) {
-          final outFile = File(fullPath);
-          await outFile.parent.create(recursive: true);
-          await outFile.writeAsBytes(file.content as List<int>);
-          fileCount++;
-        } else {
-          await Directory(fullPath).create(recursive: true);
-        }
-      }
-
-      _log('Extracted $fileCount files');
-      return true;
-    } catch (e) {
-      _log('Extract error: $e');
+      _log('DL error: $e');
       return false;
     }
   }
 
   Future<bool> init() async {
     try {
-      _log('Initializing offline speech...');
+      _log('Initializing...');
 
       final modelsPath = await _modelsPath;
       _modelDir = '$modelsPath/whisper-tiny';
 
-      final downloaded = await isModelDownloaded();
-      if (!downloaded) {
-        _log('Model not downloaded. Please download first.');
+      if (!await isModelDownloaded()) {
+        _log('Model not found');
         return false;
       }
 
-      // Init sherpa bindings
       sherpa.initBindings();
 
-      // Create recognizer with Whisper
       final config = sherpa.OfflineRecognizerConfig(
         model: sherpa.OfflineModelConfig(
           whisper: sherpa.OfflineWhisperModelConfig(
@@ -243,7 +208,6 @@ class OfflineSpeechService {
 
       _recognizer = sherpa.OfflineRecognizer(config);
 
-      // Create VAD
       final vadConfig = sherpa.VadModelConfig(
         sileroVad: sherpa.SileroVadModelConfig(
           model: '$modelsPath/silero_vad.onnx',
@@ -262,11 +226,10 @@ class OfflineSpeechService {
         bufferSizeInSeconds: 30.0,
       );
 
-      // Create circular buffer
       _buffer = sherpa.CircularBuffer(capacity: _sampleRate * 30);
 
       _isInitialized = true;
-      _log('Offline speech init: SUCCESS');
+      _log('Init OK');
       return true;
     } catch (e) {
       _log('Init error: $e');
@@ -280,7 +243,7 @@ class OfflineSpeechService {
     Function()? onCancel,
   }) async {
     if (!_isInitialized || _recognizer == null || _vad == null) {
-      _log('ERROR: Not initialized');
+      _log('Not initialized');
       return;
     }
 
@@ -288,11 +251,11 @@ class OfflineSpeechService {
     _isListening = true;
     _buffer?.reset();
     _vad?.reset();
-    _log('Listening started (offline)');
+    _log('Listening...');
 
     try {
       if (!await _audioRecorder.hasPermission()) {
-        _log('ERROR: No mic permission');
+        _log('No mic permission');
         return;
       }
 
@@ -307,20 +270,13 @@ class OfflineSpeechService {
       await for (final chunk in stream) {
         if (_stopRequested) break;
 
-        // Convert PCM16 to Float32
         final samples = _pcm16ToFloat32(chunk);
-
-        // Update sound level
         final level = _calculateLevel(samples);
         _soundLevelController.add(level);
 
-        // Push to buffer
         _buffer?.push(samples);
-
-        // Feed to VAD
         _vad!.acceptWaveform(samples);
 
-        // Check for speech segments
         while (!_vad!.isEmpty()) {
           final segment = _vad!.front();
           if (segment.samples.isNotEmpty) {
@@ -330,7 +286,6 @@ class OfflineSpeechService {
         }
       }
 
-      // Flush remaining
       _vad?.flush();
       while (_vad != null && !_vad!.isEmpty()) {
         final segment = _vad!.front();
@@ -345,7 +300,7 @@ class OfflineSpeechService {
       _log('Listen error: $e');
     } finally {
       _isListening = false;
-      _log('Listening stopped');
+      _log('Stopped');
       onCancel?.call();
     }
   }
@@ -404,4 +359,11 @@ class OfflineSpeechService {
     _logController.close();
     _soundLevelController.close();
   }
+}
+
+class _ModelFile {
+  final String name;
+  final String url;
+
+  const _ModelFile(this.name, this.url);
 }
