@@ -3,8 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:voice_tasbih/core/services/speech_service.dart';
+import 'package:voice_tasbih/core/services/offline_speech_service.dart';
 import 'package:voice_tasbih/features/counter/application/counter_notifier.dart';
+import 'package:voice_tasbih/features/counter/domain/models/counter_state.dart';
 
 class _DhikrOption {
   final String name;
@@ -30,7 +31,12 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   final List<String> _logs = [];
   StreamSubscription<String>? _logSubscription;
   StreamSubscription<double>? _soundLevelSubscription;
+
   bool _isSpeechInitialized = false;
+  bool _isModelDownloaded = false;
+  bool _isDownloading = false;
+  double _downloadProgress = 0.0;
+  String _downloadStatus = '';
   double _counterScale = 1.0;
   double _soundLevel = 0.0;
 
@@ -69,27 +75,76 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeSpeech();
+    _checkModelAndInit();
   }
 
-  Future<void> _initializeSpeech() async {
-    final speechService = ref.read(speechServiceProvider);
+  Future<void> _checkModelAndInit() async {
+    final speechService = ref.read(offlineSpeechServiceProvider);
+
     _logSubscription = speechService.logStream.listen((log) {
       _addLog(log);
     });
+
     _soundLevelSubscription = speechService.soundLevelStream.listen((level) {
       if (mounted && ref.read(counterProvider).isListening) {
         setState(() {
-          _soundLevel = level.clamp(-10.0, 0.0);
+          _soundLevel = level.clamp(0.0, 1.0);
         });
       }
     });
 
-    final success = await speechService.init();
+    final downloaded = await speechService.isModelDownloaded();
     setState(() {
-      _isSpeechInitialized = success;
+      _isModelDownloaded = downloaded;
     });
-    _addLog(success ? 'Speech init: SUCCESS' : 'Speech init: FAILED');
+
+    if (downloaded) {
+      _addLog('Model found, initializing...');
+      final success = await speechService.init();
+      setState(() {
+        _isSpeechInitialized = success;
+      });
+      _addLog(success ? 'Offline speech: READY' : 'Init FAILED');
+    } else {
+      _addLog('Model not downloaded');
+    }
+  }
+
+  Future<void> _downloadModel() async {
+    setState(() {
+      _isDownloading = true;
+      _downloadProgress = 0.0;
+    });
+
+    final speechService = ref.read(offlineSpeechServiceProvider);
+    final result = await speechService.downloadModel(
+      onStatus: (status) {
+        setState(() {
+          _downloadStatus = status;
+        });
+        _addLog(status);
+      },
+      onProgress: (progress) {
+        setState(() {
+          _downloadProgress = progress;
+        });
+      },
+    );
+
+    setState(() {
+      _isDownloading = false;
+    });
+
+    if (result > 0) {
+      _addLog('Model downloaded successfully');
+      final success = await speechService.init();
+      setState(() {
+        _isSpeechInitialized = success;
+        _isModelDownloaded = true;
+      });
+    } else {
+      _addLog('Download failed');
+    }
   }
 
   void _addLog(String message) {
@@ -116,8 +171,8 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Debug logs copied to clipboard'),
-        duration: Duration(seconds: 2),
+        content: Text('Logs copied'),
+        duration: Duration(seconds: 1),
       ),
     );
   }
@@ -129,29 +184,27 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   }
 
   Future<void> _toggleListening() async {
-    final speechService = ref.read(speechServiceProvider);
+    final speechService = ref.read(offlineSpeechServiceProvider);
     final counterNotifier = ref.read(counterProvider.notifier);
     final currentState = ref.read(counterProvider);
 
     if (currentState.isListening) {
       await speechService.stop();
       counterNotifier.setListening(false);
-      _addLog('Mic OFF (user stopped)');
+      _addLog('Mic OFF');
     } else {
       counterNotifier.setListening(true);
-      _addLog('Mic ON - Listening...');
+      _addLog('Mic ON');
 
       await speechService.listen(
-        localeId: 'ar-SA',
-        onResult: (words, isFinal) {
-          if (isFinal && words.isNotEmpty) {
+        onResult: (words) {
+          if (words.isNotEmpty) {
             _checkForDhikr(words, counterNotifier);
           }
         },
         onCancel: () {
           if (mounted) {
             counterNotifier.setListening(false);
-            _addLog('Mic OFF');
           }
         },
       );
@@ -188,11 +241,10 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
         return;
       }
     }
-    _addLog('✗ "${text.substring(0, text.length > 20 ? 20 : text.length)}..."');
   }
 
   Future<void> _stopListening() async {
-    final speechService = ref.read(speechServiceProvider);
+    final speechService = ref.read(offlineSpeechServiceProvider);
     final counterNotifier = ref.read(counterProvider.notifier);
 
     await speechService.stop();
@@ -226,7 +278,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
                   counterNotifier.setPhrase(dhikr.arabic);
                   counterNotifier.reset();
                   Navigator.pop(context);
-                  _addLog('Dhikr changed to: ${dhikr.name}');
+                  _addLog('Dhikr: ${dhikr.name}');
                 },
               );
             }).toList(),
@@ -258,7 +310,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
                   counterNotifier.setTarget(target);
                   counterNotifier.reset();
                   Navigator.pop(context);
-                  _addLog('Target changed to: $target');
+                  _addLog('Target: $target');
                 },
               );
             }).toList(),
@@ -284,7 +336,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
     return Scaffold(
       backgroundColor: Colors.blueGrey[900],
       appBar: AppBar(
-        title: const Text('Voice Tasbih'),
+        title: const Text('Voice Tasbih (Offline)'),
         backgroundColor: Colors.blueGrey[800],
         foregroundColor: Colors.white,
       ),
@@ -292,236 +344,288 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
         children: [
           Expanded(
             child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  GestureDetector(
-                    onTap: _showDhikrSelector,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white24),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            counterState.phrase,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Icon(
-                            Icons.arrow_drop_down,
-                            color: Colors.white70,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  AnimatedScale(
-                    scale: _counterScale,
-                    duration: const Duration(milliseconds: 100),
-                    curve: Curves.easeOut,
-                    child: Text(
-                      '${counterState.count}',
-                      style: TextStyle(
-                        color: counterState.isTargetReached
-                            ? Colors.greenAccent
-                            : Colors.white,
-                        fontSize: 120,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: _showTargetSelector,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white24),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Target: ${counterState.target}',
-                            style: const TextStyle(
-                              color: Colors.white54,
-                              fontSize: 18,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          const Icon(
-                            Icons.arrow_drop_down,
-                            color: Colors.white54,
-                            size: 20,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      counterNotifier.reset();
-                      _addLog('Counter reset to 0');
-                    },
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Reset Counter'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  if (!_isSpeechInitialized)
-                    const Text(
-                      'Initializing speech...',
-                      style: TextStyle(color: Colors.orange, fontSize: 14),
-                    ),
-                ],
-              ),
+              child: _isDownloading
+                  ? _buildDownloadProgress()
+                  : !_isModelDownloaded
+                  ? _buildDownloadPrompt()
+                  : _buildCounterUI(counterState, counterNotifier),
             ),
           ),
           const Divider(color: Colors.white24, height: 1),
-          Container(
-            height: 200,
-            color: Colors.black,
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          _buildDebugConsole(counterState),
+        ],
+      ),
+      floatingActionButton: _isSpeechInitialized
+          ? _buildMicButton(counterState)
+          : null,
+    );
+  }
+
+  Widget _buildDownloadPrompt() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.cloud_download, size: 80, color: Colors.white54),
+        const SizedBox(height: 20),
+        const Text(
+          'Speech Model Required',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'Download offline model (~75MB)\nfor Arabic speech recognition',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white54, fontSize: 14),
+        ),
+        const SizedBox(height: 30),
+        ElevatedButton.icon(
+          onPressed: _isDownloading ? null : _downloadModel,
+          icon: const Icon(Icons.download),
+          label: const Text('Download Model'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDownloadProgress() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const CircularProgressIndicator(color: Colors.green),
+        const SizedBox(height: 20),
+        Text(
+          _downloadStatus,
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+        ),
+        const SizedBox(height: 10),
+        if (_downloadProgress > 0 && _downloadProgress < 1)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: LinearProgressIndicator(
+              value: _downloadProgress,
+              backgroundColor: Colors.white24,
+              color: Colors.green,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildCounterUI(
+    CounterState counterState,
+    CounterNotifier counterNotifier,
+  ) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        GestureDetector(
+          onTap: _showDhikrSelector,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.white24),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    const Text(
-                      'Debug Console',
-                      style: TextStyle(
-                        color: Colors.green,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const Spacer(),
-                    if (counterState.isListening)
-                      Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'LISTENING',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.copy,
-                        color: Colors.green,
-                        size: 18,
-                      ),
-                      onPressed: _copyLogs,
-                      tooltip: 'Copy logs',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.clear,
-                        color: Colors.green,
-                        size: 18,
-                      ),
-                      onPressed: _clearLogs,
-                      tooltip: 'Clear logs',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
+                Text(
+                  counterState.phrase,
+                  style: const TextStyle(color: Colors.white70, fontSize: 20),
                 ),
-                const SizedBox(height: 4),
-                Expanded(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    itemCount: _logs.length,
-                    itemBuilder: (context, index) {
-                      return Text(
-                        _logs[index],
-                        style: const TextStyle(
-                          color: Colors.green,
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                        ),
-                      );
-                    },
-                  ),
+                const SizedBox(width: 8),
+                const Icon(Icons.arrow_drop_down, color: Colors.white70),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        AnimatedScale(
+          scale: _counterScale,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOut,
+          child: Text(
+            '${counterState.count}',
+            style: TextStyle(
+              color: counterState.isTargetReached
+                  ? Colors.greenAccent
+                  : Colors.white,
+              fontSize: 120,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        GestureDetector(
+          onTap: _showTargetSelector,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.white24),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Target: ${counterState.target}',
+                  style: const TextStyle(color: Colors.white54, fontSize: 18),
+                ),
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.arrow_drop_down,
+                  color: Colors.white54,
+                  size: 20,
                 ),
               ],
             ),
           ),
-        ],
-      ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
+        ),
+        const SizedBox(height: 30),
+        ElevatedButton.icon(
+          onPressed: () {
+            counterNotifier.reset();
+            _addLog('Reset');
+          },
+          icon: const Icon(Icons.refresh),
+          label: const Text('Reset Counter'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          ),
+        ),
+        const SizedBox(height: 20),
+        if (!_isSpeechInitialized)
+          const Text(
+            'Initializing...',
+            style: TextStyle(color: Colors.orange, fontSize: 14),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildDebugConsole(CounterState counterState) {
+    return Container(
+      height: 200,
+      color: Colors.black,
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (counterState.isListening) ...[
-            Container(
-              width: 80,
-              height: 6,
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.black26,
-                borderRadius: BorderRadius.circular(3),
-              ),
-              child: FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: ((_soundLevel + 10) / 10).clamp(0.1, 1.0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.greenAccent,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
+          Row(
+            children: [
+              const Text(
+                'Debug Console',
+                style: TextStyle(
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
                 ),
               ),
-            ),
-          ],
-          FloatingActionButton.large(
-            onPressed: _isSpeechInitialized ? _toggleListening : null,
-            backgroundColor: counterState.isListening
-                ? Colors.red
-                : Colors.green,
-            child: Icon(
-              counterState.isListening ? Icons.stop : Icons.mic,
-              size: 40,
-              color: Colors.white,
+              const Spacer(),
+              if (counterState.isListening)
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'LISTENING',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              IconButton(
+                icon: const Icon(Icons.copy, color: Colors.green, size: 18),
+                onPressed: _copyLogs,
+                tooltip: 'Copy',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.clear, color: Colors.green, size: 18),
+                onPressed: _clearLogs,
+                tooltip: 'Clear',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: ListView.builder(
+              controller: _scrollController,
+              itemCount: _logs.length,
+              itemBuilder: (context, index) {
+                return Text(
+                  _logs[index],
+                  style: const TextStyle(
+                    color: Colors.green,
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                  ),
+                );
+              },
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMicButton(CounterState counterState) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (counterState.isListening) ...[
+          Container(
+            width: 80,
+            height: 6,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.black26,
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: _soundLevel.clamp(0.1, 1.0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.greenAccent,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+          ),
+        ],
+        FloatingActionButton.large(
+          onPressed: _toggleListening,
+          backgroundColor: counterState.isListening ? Colors.red : Colors.green,
+          child: Icon(
+            counterState.isListening ? Icons.stop : Icons.mic,
+            size: 40,
+            color: Colors.white,
+          ),
+        ),
+      ],
     );
   }
 }
