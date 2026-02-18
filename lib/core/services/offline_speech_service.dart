@@ -149,9 +149,9 @@ class OfflineSpeechService {
       final vadConfig = sherpa.VadModelConfig(
         sileroVad: sherpa.SileroVadModelConfig(
           model: '$modelsPath/silero_vad.onnx',
-          threshold: 0.5,
-          minSilenceDuration: 0.5,
-          minSpeechDuration: 0.3,
+          threshold: 0.3,
+          minSilenceDuration: 1.0,
+          minSpeechDuration: 0.1,
           maxSpeechDuration: 30.0,
         ),
         sampleRate: _sampleRate,
@@ -215,8 +215,13 @@ class OfflineSpeechService {
         _buffer?.push(samples);
         _vad!.acceptWaveform(samples);
 
+        if (_vad!.isDetected()) {
+          _log('Speech detected');
+        }
+
         while (!_vad!.isEmpty()) {
           final segment = _vad!.front();
+          _log('Segment: ${segment.samples.length} samples');
           if (segment.samples.isNotEmpty) {
             _processSegment(segment.samples, onResult);
           }
@@ -272,8 +277,8 @@ class OfflineSpeechService {
       stream.free();
 
       final text = result.text.trim();
+      _log('Result: "$text" (${samples.length} samples)');
       if (text.isNotEmpty) {
-        _log('Heard: "$text"');
         onResult(text);
       }
     } catch (e) {
