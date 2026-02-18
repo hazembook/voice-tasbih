@@ -17,12 +17,16 @@ class SpeechService {
   final SpeechToText _speech = SpeechToText();
   final StreamController<String> _logController =
       StreamController<String>.broadcast();
+  final StreamController<double> _soundLevelController =
+      StreamController<double>.broadcast();
 
   Stream<String> get logStream => _logController.stream;
+  Stream<double> get soundLevelStream => _soundLevelController.stream;
 
   bool _isInitialized = false;
   bool _isListening = false;
   bool _userRequestedStop = false;
+  bool _isRestarting = false;
   String _localeId = 'ar-SA';
   Function(String, bool)? _onResultCallback;
   Function()? _onCancelCallback;
@@ -37,6 +41,7 @@ class SpeechService {
   void _handleStop({bool userRequested = false}) {
     if (_isListening) {
       _isListening = false;
+      _isRestarting = false;
       if (userRequested || _userRequestedStop) {
         _onCancelCallback?.call();
         _onResultCallback = null;
@@ -60,17 +65,20 @@ class SpeechService {
       _log('Initializing speech recognition...');
       _isInitialized = await _speech.initialize(
         onError: (error) {
-          _log('ERROR: ${error.errorMsg}');
+          if (error.errorMsg == 'error_busy') {
+            return;
+          }
           if (!error.permanent) {
-            _restartListening();
+            _scheduleRestart();
           } else {
+            _log('ERROR: ${error.errorMsg}');
             _handleStop();
           }
         },
         onStatus: (status) {
           if (status == 'done' || status == 'notListening') {
             if (!_userRequestedStop) {
-              _restartListening();
+              _scheduleRestart();
             } else {
               _handleStop();
             }
@@ -91,12 +99,17 @@ class SpeechService {
     }
   }
 
+  void _scheduleRestart() {
+    if (_isRestarting || _userRequestedStop) return;
+    _isRestarting = true;
+    Future.delayed(const Duration(milliseconds: 300), _restartListening);
+  }
+
   Future<void> _restartListening() async {
-    if (_userRequestedStop) return;
-
-    await Future.delayed(const Duration(milliseconds: 100));
-
-    if (_userRequestedStop || _onResultCallback == null) return;
+    if (_userRequestedStop || _onResultCallback == null) {
+      _isRestarting = false;
+      return;
+    }
 
     try {
       _isListening = true;
@@ -111,11 +124,15 @@ class SpeechService {
         pauseFor: const Duration(seconds: 30),
         partialResults: true,
         cancelOnError: false,
+        onSoundLevelChange: (level) {
+          _soundLevelController.add(level);
+        },
         localeId: _localeId,
       );
     } catch (e) {
-      _log('RESTART ERROR: $e');
       _handleStop();
+    } finally {
+      _isRestarting = false;
     }
   }
 
@@ -149,6 +166,9 @@ class SpeechService {
         pauseFor: const Duration(seconds: 30),
         partialResults: true,
         cancelOnError: false,
+        onSoundLevelChange: (level) {
+          _soundLevelController.add(level);
+        },
         localeId: _localeId,
       );
     } catch (e) {
@@ -171,5 +191,6 @@ class SpeechService {
 
   void dispose() {
     _logController.close();
+    _soundLevelController.close();
   }
 }
