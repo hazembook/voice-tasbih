@@ -1,19 +1,20 @@
 # Voice Tasbih App - Development Prompt
 
 ## Project Overview
-Build a Flutter app for counting Dhikr (Islamic remembrances) using voice recognition. The app should work **100% offline** with Arabic speech recognition.
+Build a Flutter app for counting Dhikr (Islamic remembrances) using voice recognition. The app works **100% offline** with Arabic speech recognition using Vosk.
 
 ## Current Repository State
 - **Branch**: `feature/offline-speech`
 - **Location**: `/home/hazem/git/hazembook/projects-test/voice-tasbih`
 - **Remote**: Not pushed (local only)
+- **Status**: Working - all 4 dhikr types detected correctly
 
 ## Architecture
 ```
 lib/
 ├── core/services/
 │   ├── speech_service.dart           # Old Google speech_to_text (reference)
-│   └── vosk_speech_service.dart      # Current Vosk implementation (BROKEN)
+│   └── vosk_speech_service.dart      # Vosk offline ASR (WORKING)
 ├── features/counter/
 │   ├── application/counter_notifier.dart
 │   ├── domain/models/counter_state.dart
@@ -24,15 +25,31 @@ assets/models/
 └── vosk-model-ar-mgb2-0.4.zip       # 333MB Arabic Vosk model
 ```
 
-## Current Issue
-**Vosk model fails to load:**
-```
-[07:43:59] Model loaded to: /data/user/0/.../models/vosk-model-ar-mgb2-0.4
-[07:43:59] Creating recognizer...
-[07:43:59] Init error: Failed to create a model
-```
+## Implemented Features
+- **Dhikr Selection**: سبحان الله, الحمد لله, الله أكبر, لا إله إلا الله
+- **Target Selection**: 33, 100, 1000
+- **Voice Detection**: Grammar-based recognition with partial result counting
+- **Real-time Feedback**: Haptic + visual animation on each count
+- **Debug Console**: On-screen logs for troubleshooting
+- **Continuous Listening**: No restart sounds, works until target reached
 
-The model extracts but `_vosk.createModel(path)` fails.
+## Technical Implementation
+
+### Grammar-Based Recognition
+Uses Vosk's grammar constraint with 19 phrases to bias recognition toward dhikr:
+- Full phrases and phonetic variants
+- Special handling for "La ilaha illallah" (harder to recognize)
+
+### Partial Result Counting
+- Counts dhikr immediately on partial results (faster response)
+- Tracks accumulated count to avoid double-counting
+- Final results logged but don't add extra counts
+
+### Counting Logic
+- `سبحان الله`: Direct string matching
+- `الحمد لله`: Direct string matching
+- `الله أكبر`: Direct string matching with alef variants
+- `لا إله إلا الله`: Special non-overlapping scan for variants
 
 ## Dependencies (pubspec.yaml)
 ```yaml
@@ -51,47 +68,15 @@ dev_dependencies:
   freezed: ^3.0.0
 ```
 
-## The Task
-
-### 1. Debug Vosk Model Loading Issue
-The model zip extracts correctly but `createModel()` fails. Possible causes:
-- Model expects specific directory structure
-- Path issue after extraction
-- Native library not finding model files
-
-**Reference repos:**
-- https://github.com/Dhia-Bechattaoui/vosk-flutter-service (official fork with Android fixes)
-- Check the example app in this repo for correct usage
-
-### 2. If Vosk Cannot Be Fixed
-Research and implement alternatives:
-
-**Option A: Return to speech_to_text with improvements**
-- Use Google's speech_to_text (already in pubspec as `speech_to_text: ^7.3.0`)
-- Problem: Creates "beep" sound on restart
-- Solution: Use Android platform channel to mute AudioManager
-
-**Option B: Try sherpa-onnx streaming model**
-- Already tried Whisper (hallucinates on silence)
-- Look for streaming zipformer model with Arabic support
-
-### 3. Required App Features
-- **Dhikr Selection**: Subhan Allah, Alhamdulillah, Allahu Akbar, La ilaha illallah
-- **Target Selection**: 33, 100, 1000
-- **Voice Detection**: Must detect Arabic phrases accurately
-- **Real-time Feedback**: Haptic + visual on detection
-- **Debug Console**: On-screen logs (user cannot use adb)
-- **Continuous Listening**: No restart sounds, works until target reached
-
-### 4. Android Configuration
-Already configured in `android/app/src/main/AndroidManifest.xml`:
+## Android Configuration
 ```xml
+<!-- android/app/src/main/AndroidManifest.xml -->
 <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 <uses-permission android:name="android.permission.INTERNET"/>
 ```
 
-May need proguard rules in `android/app/proguard-rules.pro`:
 ```pro
+# android/app/proguard-rules.pro
 -keep class com.sun.jna.* { *; }
 -keepclassmembers class * extends com.sun.jna.* { public *; }
 ```
@@ -106,28 +91,23 @@ flutter test
 
 # Code generation
 dart run build_runner build --delete-conflicting-outputs
-
-# Check dependency conflicts
-flutter pub outdated
-flutter pub upgrade --major-versions
 ```
 
-## Success Criteria
-1. App initializes speech recognition without errors
-2. User taps mic → listening starts (no beep sound)
-3. User says "سبحان الله" → counter increments
-4. Works with normal recitation speed
-5. No false detections on silence
-6. Continuous listening until user stops or target reached
+## Known Limitations
+1. **Model size**: 333MB Arabic model increases APK size
+2. **La ilaha illallah**: Occasionally misrecognized as similar-sounding phrases
+3. **VAD delay**: Final results wait for silence (~1-2s), but partials count immediately
 
-## Next Session Tasks
-1. **Debug Vosk** - Check model directory structure after extraction
-2. **Try alternative approach** if Vosk doesn't work
-3. **Ensure no restart sounds** - critical requirement
-4. **Test with real Arabic speech**
+## Future Improvements
+1. **Smaller model**: Try smaller Arabic model if available
+2. **Sound effects**: Add optional audio feedback on count
+3. **History**: Track daily/weekly dhikr counts
+4. **Custom targets**: Allow user-defined target numbers
+5. **Multiple dhikr session**: Count different dhikr in one session
+6. **Better La ilaha detection**: Add more phonetic variants
 
 ## Key Files to Read
-- `lib/core/services/vosk_speech_service.dart` - Current broken implementation
-- `lib/features/counter/presentation/counter_screen.dart` - UI
+- `lib/core/services/vosk_speech_service.dart` - Vosk implementation
+- `lib/features/counter/presentation/counter_screen.dart` - UI + counting logic
 - `lib/features/counter/application/counter_notifier.dart` - State management
 - `lib/features/counter/domain/models/counter_state.dart` - Data model
