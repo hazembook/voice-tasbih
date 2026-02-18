@@ -300,7 +300,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Select Dhikr'),
+          title: const Text('اختر الذكر'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: _dhikrOptions.map((dhikr) {
@@ -376,7 +376,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
     return Scaffold(
       backgroundColor: Colors.blueGrey[900],
       appBar: AppBar(
-        title: const Text('Voice Tasbih'),
+        title: const Text('ذاكر'),
         backgroundColor: Colors.blueGrey[800],
         foregroundColor: Colors.white,
       ),
@@ -486,10 +486,10 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
         ElevatedButton.icon(
           onPressed: () {
             counterNotifier.reset();
-            _addLog('Reset');
+            _addLog('تم إعادة الضبط');
           },
           icon: const Icon(Icons.refresh),
-          label: const Text('Reset Counter'),
+          label: const Text('إعادة الضبط'),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.orange,
             foregroundColor: Colors.white,
