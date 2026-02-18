@@ -30,13 +30,23 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   final ScrollController _scrollController = ScrollController();
   final List<String> _logs = [];
   StreamSubscription<String>? _logSubscription;
-  StreamSubscription<double>? _soundLevelSubscription;
 
   bool _isSpeechInitialized = false;
   bool _isInitializing = false;
   double _counterScale = 1.0;
-  double _soundLevel = 0.0;
   String? _lastDetectedText;
+
+  static const _grammar = [
+    'سبحان الله',
+    'سبحان',
+    'الحمد لله',
+    'الحمد',
+    'الله أكبر',
+    'الله اكبر',
+    'اكبر',
+    'لا إله إلا الله',
+    'لا اله الا الله',
+  ];
 
   final List<_DhikrOption> _dhikrOptions = const [
     _DhikrOption(
@@ -87,15 +97,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
       _addLog(log);
     });
 
-    _soundLevelSubscription = speechService.soundLevelStream.listen((level) {
-      if (mounted && ref.read(counterProvider).isListening) {
-        setState(() {
-          _soundLevel = level.clamp(0.0, 1.0);
-        });
-      }
-    });
-
-    final success = await speechService.init();
+    final success = await speechService.init(grammar: _grammar);
 
     setState(() {
       _isSpeechInitialized = success;
@@ -297,7 +299,6 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   @override
   void dispose() {
     _logSubscription?.cancel();
-    _soundLevelSubscription?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -513,40 +514,14 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   }
 
   Widget _buildMicButton(CounterState counterState) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (counterState.isListening) ...[
-          Container(
-            width: 80,
-            height: 6,
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: Colors.black26,
-              borderRadius: BorderRadius.circular(3),
-            ),
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: _soundLevel.clamp(0.1, 1.0),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.greenAccent,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-            ),
-          ),
-        ],
-        FloatingActionButton.large(
-          onPressed: _toggleListening,
-          backgroundColor: counterState.isListening ? Colors.red : Colors.green,
-          child: Icon(
-            counterState.isListening ? Icons.stop : Icons.mic,
-            size: 40,
-            color: Colors.white,
-          ),
-        ),
-      ],
+    return FloatingActionButton.large(
+      onPressed: _toggleListening,
+      backgroundColor: counterState.isListening ? Colors.red : Colors.green,
+      child: Icon(
+        counterState.isListening ? Icons.stop : Icons.mic,
+        size: 40,
+        color: Colors.white,
+      ),
     );
   }
 }

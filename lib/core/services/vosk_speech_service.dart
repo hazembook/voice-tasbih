@@ -16,8 +16,6 @@ VoskSpeechService voskSpeechService(Ref ref) {
 class VoskSpeechService {
   final StreamController<String> _logController =
       StreamController<String>.broadcast();
-  final StreamController<double> _soundLevelController =
-      StreamController<double>.broadcast();
 
   final vosk.VoskFlutterPlugin _vosk = vosk.VoskFlutterPlugin.instance();
   vosk.Recognizer? _recognizer;
@@ -34,7 +32,6 @@ class VoskSpeechService {
   bool get isListening => _isListening;
 
   Stream<String> get logStream => _logController.stream;
-  Stream<double> get soundLevelStream => _soundLevelController.stream;
 
   void _log(String message) {
     _logController.add(message);
@@ -64,7 +61,7 @@ class VoskSpeechService {
     }
   }
 
-  Future<bool> init() async {
+  Future<bool> init({List<String>? grammar}) async {
     try {
       _log('Initializing Vosk...');
 
@@ -79,10 +76,19 @@ class VoskSpeechService {
       _log('Creating recognizer...');
       final model = await _vosk.createModel(_modelPath!);
 
-      _recognizer = await _vosk.createRecognizer(
-        model: model,
-        sampleRate: 16000,
-      );
+      if (grammar != null && grammar.isNotEmpty) {
+        _log('Using grammar: ${grammar.length} phrases');
+        _recognizer = await _vosk.createRecognizer(
+          model: model,
+          sampleRate: 16000,
+          grammar: grammar,
+        );
+      } else {
+        _recognizer = await _vosk.createRecognizer(
+          model: model,
+          sampleRate: 16000,
+        );
+      }
 
       _log('Creating speech service...');
       _voskSpeechService = await _vosk.initSpeechService(_recognizer!);
@@ -153,6 +159,5 @@ class VoskSpeechService {
 
   void dispose() {
     _logController.close();
-    _soundLevelController.close();
   }
 }
