@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:vosk_flutter_service/vosk_flutter.dart' as vosk;
@@ -22,6 +23,9 @@ class VoskSpeechService {
   vosk.Recognizer? _recognizer;
   vosk.SpeechService? _voskSpeechService;
 
+  StreamSubscription<String>? _partialSubscription;
+  StreamSubscription<String>? _resultSubscription;
+
   bool _isInitialized = false;
   bool _isListening = false;
   String? _modelPath;
@@ -34,6 +38,15 @@ class VoskSpeechService {
 
   void _log(String message) {
     _logController.add(message);
+  }
+
+  String? _extractText(String json, String key) {
+    try {
+      final decoded = jsonDecode(json) as Map<String, dynamic>;
+      return decoded[key] as String?;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<String?> _loadModelFromAssets() async {
@@ -85,7 +98,8 @@ class VoskSpeechService {
   }
 
   Future<void> listen({
-    required Function(String) onResult,
+    required Function(String) onPartial,
+    required Function(String) onFinal,
     Function()? onCancel,
   }) async {
     if (!_isInitialized || _voskSpeechService == null) {
@@ -97,17 +111,18 @@ class VoskSpeechService {
     _log('Listening...');
 
     try {
-      _voskSpeechService!.onPartial().listen((partial) {
-        if (partial.isNotEmpty) {
-          _log('Partial: "$partial"');
-          onResult(partial);
+      _partialSubscription = _voskSpeechService!.onPartial().listen((json) {
+        final partial = _extractText(json, 'partial');
+        if (partial != null && partial.isNotEmpty) {
+          onPartial(partial);
         }
       });
 
-      _voskSpeechService!.onResult().listen((result) {
-        if (result.isNotEmpty) {
-          _log('Result: "$result"');
-          onResult(result);
+      _resultSubscription = _voskSpeechService!.onResult().listen((json) {
+        final text = _extractText(json, 'text');
+        if (text != null && text.isNotEmpty) {
+          _log('Result: "$text"');
+          onFinal(text);
         }
       });
 
@@ -124,8 +139,13 @@ class VoskSpeechService {
 
     try {
       _log('Stopping...');
+      await _partialSubscription?.cancel();
+      await _resultSubscription?.cancel();
+      _partialSubscription = null;
+      _resultSubscription = null;
       await _voskSpeechService!.stop();
       _isListening = false;
+      _log('Stopped');
     } catch (e) {
       _log('Stop error: $e');
     }

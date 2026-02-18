@@ -36,6 +36,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   bool _isInitializing = false;
   double _counterScale = 1.0;
   double _soundLevel = 0.0;
+  String? _lastDetectedText;
 
   final List<_DhikrOption> _dhikrOptions = const [
     _DhikrOption(
@@ -148,14 +149,20 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
       counterNotifier.setListening(false);
       _addLog('Mic OFF');
     } else {
+      if (currentState.isTargetReached) {
+        counterNotifier.reset();
+        _addLog('Counter reset');
+      }
+      _lastDetectedText = null;
       counterNotifier.setListening(true);
       _addLog('Mic ON');
 
       await speechService.listen(
-        onResult: (words) {
-          if (words.isNotEmpty) {
-            _checkForDhikr(words, counterNotifier);
-          }
+        onPartial: (text) {
+          _checkForDhikr(text, counterNotifier, isPartial: true);
+        },
+        onFinal: (text) {
+          _checkForDhikr(text, counterNotifier, isPartial: false);
         },
         onCancel: () {
           if (mounted) {
@@ -166,12 +173,24 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
     }
   }
 
-  void _checkForDhikr(String text, CounterNotifier notifier) {
+  void _checkForDhikr(
+    String text,
+    CounterNotifier notifier, {
+    required bool isPartial,
+  }) {
     final counterState = ref.read(counterProvider);
     final currentDhikr = _getCurrentDhikr(counterState.phrase);
 
     for (final pattern in currentDhikr.patterns) {
       if (text.contains(pattern)) {
+        if (isPartial) {
+          if (_lastDetectedText == text) return;
+          _lastDetectedText = text;
+          _addLog('Heard: "$text"');
+        } else {
+          _lastDetectedText = null;
+        }
+
         notifier.increment();
         HapticFeedback.mediumImpact();
         _addLog('✓ ${counterState.count + 1}/${counterState.target}');
