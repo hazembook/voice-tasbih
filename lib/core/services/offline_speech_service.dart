@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -50,15 +51,12 @@ class OfflineSpeechService {
     return '${appDir.path}/sherpa_models';
   }
 
-  Future<bool> isModelDownloaded() async {
+  Future<bool> isModelReady() async {
     try {
       final modelsPath = await _modelsPath;
       final dir = Directory('$modelsPath/whisper-tiny');
 
-      if (!await dir.exists()) {
-        _log('Model directory not found');
-        return false;
-      }
+      if (!await dir.exists()) return false;
 
       final tokensFile = File('${dir.path}/tokens.txt');
       final encoderFile = File('${dir.path}/tiny-encoder.onnx');
@@ -70,15 +68,11 @@ class OfflineSpeechService {
           await decoderFile.exists() &&
           await vadFile.exists();
     } catch (e) {
-      _log('Check error: $e');
       return false;
     }
   }
 
-  Future<double> downloadModel({
-    void Function(String status)? onStatus,
-    void Function(double progress)? onProgress,
-  }) async {
+  Future<bool> copyAssetsToFs() async {
     try {
       final modelsPath = await _modelsPath;
       final whisperDir = Directory('$modelsPath/whisper-tiny');
@@ -88,90 +82,29 @@ class OfflineSpeechService {
       }
       await whisperDir.create(recursive: true);
 
-      const hfBaseUrl =
-          'https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny/resolve/main';
+      _log('Copying model from assets...');
 
+      // Copy whisper model files
       final files = [
-        _ModelFile('tokens.txt', '$hfBaseUrl/tokens.txt'),
-        _ModelFile('tiny-encoder.onnx', '$hfBaseUrl/tiny-encoder.onnx'),
-        _ModelFile('tiny-decoder.onnx', '$hfBaseUrl/tiny-decoder.onnx'),
+        ('whisper-tiny/tokens.txt', 'tokens.txt'),
+        ('whisper-tiny/tiny-encoder.onnx', 'tiny-encoder.onnx'),
+        ('whisper-tiny/tiny-decoder.onnx', 'tiny-decoder.onnx'),
+        ('silero_vad.onnx', '../silero_vad.onnx'),
       ];
 
-      final totalFiles = files.length + 1;
-      var completedFiles = 0;
-
-      for (final file in files) {
-        onStatus?.call('Downloading ${file.name}...');
-        _log('Downloading: ${file.url}');
-        final targetFile = File('${whisperDir.path}/${file.name}');
-        final success = await _downloadFile(file.url, targetFile, (p) {
-          onProgress?.call((completedFiles + p) / totalFiles);
-        });
-        if (!success) {
-          _log('Failed: ${file.name}');
-          return -1;
-        }
-        completedFiles++;
-        _log('OK: ${file.name}');
+      for (final (assetPath, targetName) in files) {
+        _log('Copying $targetName...');
+        final data = await rootBundle.load('assets/models/$assetPath');
+        final bytes = data.buffer.asUint8List();
+        final file = File('${whisperDir.path}/$targetName');
+        await file.writeAsBytes(bytes);
+        _log('OK: $targetName (${bytes.length} bytes)');
       }
 
-      onStatus?.call('Downloading VAD...');
-      const vadUrl =
-          'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx';
-      final vadFile = File('$modelsPath/silero_vad.onnx');
-      final vadSuccess = await _downloadFile(vadUrl, vadFile, (p) {
-        onProgress?.call((completedFiles + p) / totalFiles);
-      });
-      if (!vadSuccess) {
-        _log('Failed: VAD');
-        return -1;
-      }
-      _log('OK: VAD');
-
-      onStatus?.call('Verifying...');
-      onProgress?.call(1.0);
-
-      if (!await isModelDownloaded()) {
-        _log('Verification failed');
-        return -1;
-      }
-
-      onStatus?.call('Ready');
-      return 1.0;
-    } catch (e) {
-      _log('Error: $e');
-      return -1;
-    }
-  }
-
-  Future<bool> _downloadFile(
-    String url,
-    File target,
-    void Function(double)? onProgress,
-  ) async {
-    try {
-      final client = HttpClient();
-      final request = await client.getUrl(Uri.parse(url));
-      final response = await request.close();
-
-      if (response.statusCode != 200) {
-        _log('HTTP ${response.statusCode}');
-        return false;
-      }
-
-      final contentLength = response.contentLength ?? 1;
-      var downloaded = 0;
-
-      final raf = await target.open(mode: FileMode.writeOnly);
-      await for (final chunk in response) {
-        await raf.writeFrom(chunk);
-        downloaded += chunk.length;
-        onProgress?.call(downloaded / contentLength);
-      }
-      await raf.close();
+      _log('Model copied successfully');
       return true;
     } catch (e) {
-      _log('DL error: $e');
+      _log('Copy error: $e');
       return false;
     }
   }
@@ -183,9 +116,14 @@ class OfflineSpeechService {
       final modelsPath = await _modelsPath;
       _modelDir = '$modelsPath/whisper-tiny';
 
-      if (!await isModelDownloaded()) {
-        _log('Model not found');
-        return false;
+      // Copy from assets if not already done
+      if (!await isModelReady()) {
+        _log('Extracting model from assets...');
+        final copied = await copyAssetsToFs();
+        if (!copied) {
+          _log('Failed to extract model');
+          return false;
+        }
       }
 
       sherpa.initBindings();
@@ -359,11 +297,4 @@ class OfflineSpeechService {
     _logController.close();
     _soundLevelController.close();
   }
-}
-
-class _ModelFile {
-  final String name;
-  final String url;
-
-  const _ModelFile(this.name, this.url);
 }

@@ -33,10 +33,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   StreamSubscription<double>? _soundLevelSubscription;
 
   bool _isSpeechInitialized = false;
-  bool _isModelDownloaded = false;
-  bool _isDownloading = false;
-  double _downloadProgress = 0.0;
-  String _downloadStatus = '';
+  bool _isInitializing = false;
   double _counterScale = 1.0;
   double _soundLevel = 0.0;
 
@@ -75,10 +72,14 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   @override
   void initState() {
     super.initState();
-    _checkModelAndInit();
+    _initializeSpeech();
   }
 
-  Future<void> _checkModelAndInit() async {
+  Future<void> _initializeSpeech() async {
+    setState(() {
+      _isInitializing = true;
+    });
+
     final speechService = ref.read(offlineSpeechServiceProvider);
 
     _logSubscription = speechService.logStream.listen((log) {
@@ -93,58 +94,12 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
       }
     });
 
-    final downloaded = await speechService.isModelDownloaded();
-    setState(() {
-      _isModelDownloaded = downloaded;
-    });
-
-    if (downloaded) {
-      _addLog('Model found, initializing...');
-      final success = await speechService.init();
-      setState(() {
-        _isSpeechInitialized = success;
-      });
-      _addLog(success ? 'Offline speech: READY' : 'Init FAILED');
-    } else {
-      _addLog('Model not downloaded');
-    }
-  }
-
-  Future<void> _downloadModel() async {
-    setState(() {
-      _isDownloading = true;
-      _downloadProgress = 0.0;
-    });
-
-    final speechService = ref.read(offlineSpeechServiceProvider);
-    final result = await speechService.downloadModel(
-      onStatus: (status) {
-        setState(() {
-          _downloadStatus = status;
-        });
-        _addLog(status);
-      },
-      onProgress: (progress) {
-        setState(() {
-          _downloadProgress = progress;
-        });
-      },
-    );
+    final success = await speechService.init();
 
     setState(() {
-      _isDownloading = false;
+      _isSpeechInitialized = success;
+      _isInitializing = false;
     });
-
-    if (result > 0) {
-      _addLog('Model downloaded successfully');
-      final success = await speechService.init();
-      setState(() {
-        _isSpeechInitialized = success;
-        _isModelDownloaded = true;
-      });
-    } else {
-      _addLog('Download failed');
-    }
   }
 
   void _addLog(String message) {
@@ -336,7 +291,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
     return Scaffold(
       backgroundColor: Colors.blueGrey[900],
       appBar: AppBar(
-        title: const Text('Voice Tasbih (Offline)'),
+        title: const Text('Voice Tasbih'),
         backgroundColor: Colors.blueGrey[800],
         foregroundColor: Colors.white,
       ),
@@ -344,10 +299,8 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
         children: [
           Expanded(
             child: Center(
-              child: _isDownloading
-                  ? _buildDownloadProgress()
-                  : !_isModelDownloaded
-                  ? _buildDownloadPrompt()
+              child: _isInitializing
+                  ? _buildInitializingUI()
                   : _buildCounterUI(counterState, counterNotifier),
             ),
           ),
@@ -361,61 +314,16 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
     );
   }
 
-  Widget _buildDownloadPrompt() {
-    return Column(
+  Widget _buildInitializingUI() {
+    return const Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(Icons.cloud_download, size: 80, color: Colors.white54),
-        const SizedBox(height: 20),
-        const Text(
-          'Speech Model Required',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 10),
-        const Text(
-          'Download offline model (~75MB)\nfor Arabic speech recognition',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white54, fontSize: 14),
-        ),
-        const SizedBox(height: 30),
-        ElevatedButton.icon(
-          onPressed: _isDownloading ? null : _downloadModel,
-          icon: const Icon(Icons.download),
-          label: const Text('Download Model'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDownloadProgress() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const CircularProgressIndicator(color: Colors.green),
-        const SizedBox(height: 20),
+        CircularProgressIndicator(color: Colors.green),
+        SizedBox(height: 20),
         Text(
-          _downloadStatus,
-          style: const TextStyle(color: Colors.white, fontSize: 16),
+          'Loading speech model...',
+          style: TextStyle(color: Colors.white70, fontSize: 16),
         ),
-        const SizedBox(height: 10),
-        if (_downloadProgress > 0 && _downloadProgress < 1)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: LinearProgressIndicator(
-              value: _downloadProgress,
-              backgroundColor: Colors.white24,
-              color: Colors.green,
-            ),
-          ),
       ],
     );
   }
@@ -503,12 +411,6 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           ),
         ),
-        const SizedBox(height: 20),
-        if (!_isSpeechInitialized)
-          const Text(
-            'Initializing...',
-            style: TextStyle(color: Colors.orange, fontSize: 14),
-          ),
       ],
     );
   }
