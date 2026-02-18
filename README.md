@@ -11,7 +11,7 @@
 > 📖 عن النبي ﷺ: «أَيَعْجِزُ أَحَدُكُمْ أَنْ يَكْسِبَ كُلَّ يَوْمٍ أَلْفَ حَسَنَةٍ؟» قَالَ: «يُسَبِّحُ مِائَةَ تَسْبِيحَةٍ، فَيُكْتَبُ لَهُ أَلْفُ حَسَنَةٍ» [صحيح مسلم]
 
 <p align="center">
-  <img src="docs/demos/v0.1.1/dhakir_demo.gif" width="200" alt="Dhakir demo">
+  <img src="docs/demos/v0.1.1/al_dhakir_demo.gif" width="200" alt="Al-Dhakir demo">
 </p>
 
 ## Features
@@ -24,7 +24,7 @@
 
 ## Download
 
-Download the latest APK from [GitHub Releases](https://github.com/hazembook/voice-tasbih/releases) or [GitLab Releases](https://gitlab.com/hazembook/voice-tasbih/-/releases).
+Download the latest APK from [GitHub Releases](https://github.com/hazembook/al-dhakir/releases) or [GitLab Releases](https://gitlab.com/hazembook/al-dhakir/-/releases).
 
 | Architecture | Device Type |
 |--------------|-------------|
@@ -35,11 +35,11 @@ Download the latest APK from [GitHub Releases](https://github.com/hazembook/voic
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/hazembook/voice-tasbih.git
+git clone https://github.com/hazembook/al-dhakir.git
 # or
-git clone https://gitlab.com/hazembook/voice-tasbih.git
+git clone https://gitlab.com/hazembook/al-dhakir.git
 
-cd voice-tasbih
+cd al-dhakir
 ```
 
 ### 2. Download Speech Recognition Model
