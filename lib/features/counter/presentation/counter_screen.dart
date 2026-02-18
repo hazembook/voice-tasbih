@@ -34,7 +34,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   bool _isSpeechInitialized = false;
   bool _isInitializing = false;
   double _counterScale = 1.0;
-  String? _lastDetectedText;
+  int _partialCount = 0;
 
   static const _grammar = [
     'سبحان الله',
@@ -155,7 +155,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
         counterNotifier.reset();
         _addLog('Counter reset');
       }
-      _lastDetectedText = null;
+      _partialCount = 0;
       counterNotifier.setListening(true);
       _addLog('Mic ON');
 
@@ -183,24 +183,25 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
     final counterState = ref.read(counterProvider);
     final currentDhikr = _getCurrentDhikr(counterState.phrase);
 
-    for (final pattern in currentDhikr.patterns) {
-      if (text.contains(pattern)) {
-        if (isPartial) {
-          if (_lastDetectedText == text) return;
-          _lastDetectedText = text;
-          _addLog('Heard: "$text"');
-          return;
-        }
+    final totalCount = _countOccurrences(text, currentDhikr.arabic);
+    if (totalCount == 0) return;
 
-        _lastDetectedText = null;
-        notifier.increment();
-        HapticFeedback.mediumImpact();
-        _addLog('✓ ${counterState.count + 1}/${counterState.target}');
+    if (isPartial) {
+      final newCount = totalCount - _partialCount;
+      if (newCount > 0) {
+        _partialCount = totalCount;
+        for (var i = 0; i < newCount; i++) {
+          notifier.increment();
+        }
+        HapticFeedback.lightImpact();
+        _addLog(
+          '✓ +$newCount → ${counterState.count + newCount}/${counterState.target}',
+        );
 
         setState(() {
-          _counterScale = 1.15;
+          _counterScale = 1.1;
         });
-        Future.delayed(const Duration(milliseconds: 100), () {
+        Future.delayed(const Duration(milliseconds: 80), () {
           if (mounted) {
             setState(() {
               _counterScale = 1.0;
@@ -214,9 +215,22 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
           _addLog('🎉 Target reached!');
           _stopListening();
         }
-        return;
       }
+      return;
     }
+
+    _partialCount = 0;
+    _addLog('Final: "$text"');
+  }
+
+  int _countOccurrences(String text, String pattern) {
+    var count = 0;
+    var index = 0;
+    while ((index = text.indexOf(pattern, index)) != -1) {
+      count++;
+      index += pattern.length;
+    }
+    return count;
   }
 
   Future<void> _stopListening() async {
