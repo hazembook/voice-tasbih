@@ -11,12 +11,7 @@
 > 📖 عن النبي ﷺ: «أَيَعْجِزُ أَحَدُكُمْ أَنْ يَكْسِبَ كُلَّ يَوْمٍ أَلْفَ حَسَنَةٍ؟» قَالَ: «يُسَبِّحُ مِائَةَ تَسْبِيحَةٍ، فَيُكْتَبُ لَهُ أَلْفُ حَسَنَةٍ» [صحيح مسلم]
 
 <p align="center">
-  <img src="docs/screenshots/Screenshot_20260218_162914_com.hazembook.dhakir.jpg" width="150" alt="Main screen">
-  <img src="docs/screenshots/Screenshot_20260218_162925_com.hazembook.dhakir.jpg" width="150" alt="Permission dialog">
-  <img src="docs/screenshots/Screenshot_20260218_163125_com.hazembook.dhakir.jpg" width="150" alt="Dhikr selection"><br>
-  <img src="docs/screenshots/Screenshot_20260218_163218_com.hazembook.dhakir.jpg" width="150" alt="Listening">
-  <img src="docs/screenshots/Screenshot_20260218_163307_com.hazembook.dhakir.jpg" width="150" alt="Counting">
-  <img src="docs/screenshots/Screenshot_20260218_163309_com.hazembook.dhakir.jpg" width="150" alt="Target reached">
+  <img src="docs/screenshots/dhakir_demo.gif" width="200" alt="Dhakir demo">
 </p>
 
 ## Features
