@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -145,13 +146,28 @@ class OfflineSpeechService {
 
   Future<bool> _extractTar(File tarFile, String targetDir) async {
     try {
-      final result = await Process.run('tar', [
-        '-xjf',
-        tarFile.path,
-        '-C',
-        targetDir,
-      ]);
-      return result.exitCode == 0;
+      _log('Reading archive...');
+      final bytes = await tarFile.readAsBytes();
+
+      _log('Decompressing...');
+      final tarBytes = BZip2Decoder().decodeBytes(bytes);
+
+      _log('Extracting files...');
+      final archive = TarDecoder().decodeBytes(tarBytes);
+
+      for (final file in archive) {
+        final filePath = '$targetDir/${file.name}';
+        if (file.isFile) {
+          final outFile = File(filePath);
+          await outFile.parent.create(recursive: true);
+          await outFile.writeAsBytes(file.content as List<int>);
+        } else {
+          await Directory(filePath).create(recursive: true);
+        }
+      }
+
+      _log('Extraction complete');
+      return true;
     } catch (e) {
       _log('Extract error: $e');
       return false;
