@@ -373,29 +373,33 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
     final counterState = ref.watch(counterProvider);
     final counterNotifier = ref.read(counterProvider.notifier);
 
-    return Scaffold(
-      backgroundColor: Colors.blueGrey[900],
-      appBar: AppBar(
-        title: const Text('ذاكر'),
-        backgroundColor: Colors.blueGrey[800],
-        foregroundColor: Colors.white,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Center(
-              child: _isInitializing
-                  ? _buildInitializingUI()
-                  : _buildCounterUI(counterState, counterNotifier),
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: Colors.blueGrey[900],
+        appBar: AppBar(
+          title: const Text('ذاكر'),
+          centerTitle: true,
+          backgroundColor: Colors.blueGrey[800],
+          foregroundColor: Colors.white,
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: Center(
+                child: _isInitializing
+                    ? _buildInitializingUI()
+                    : _buildCounterUI(counterState, counterNotifier),
+              ),
             ),
-          ),
-          const Divider(color: Colors.white24, height: 1),
-          _buildDebugConsole(counterState),
-        ],
+            const Divider(color: Colors.white24, height: 1),
+            _buildDebugConsole(counterState),
+          ],
+        ),
+        floatingActionButton: _isSpeechInitialized
+            ? _buildMicButton(counterState)
+            : null,
       ),
-      floatingActionButton: _isSpeechInitialized
-          ? _buildMicButton(counterState)
-          : null,
     );
   }
 
