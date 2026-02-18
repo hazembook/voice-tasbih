@@ -6,9 +6,11 @@ import 'package:speech_to_text/speech_to_text.dart';
 
 part 'speech_service.g.dart';
 
-@riverpod
+@Riverpod(keepAlive: true)
 SpeechService speechService(Ref ref) {
-  return SpeechService();
+  final service = SpeechService();
+  ref.onDispose(() => service.dispose());
+  return service;
 }
 
 class SpeechService {
@@ -20,6 +22,7 @@ class SpeechService {
 
   bool _isInitialized = false;
   bool _isListening = false;
+  Function(String)? _onResultCallback;
 
   bool get isInitialized => _isInitialized;
   bool get isListening => _isListening;
@@ -34,18 +37,19 @@ class SpeechService {
       final permissionStatus = await Permission.microphone.request();
 
       if (!permissionStatus.isGranted) {
-        _log('Error: Microphone permission denied');
+        _log('ERROR: Microphone permission DENIED');
         return false;
       }
+      _log('Permission granted');
 
       _log('Initializing speech recognition...');
       _isInitialized = await _speech.initialize(
         onError: (error) {
-          _log('Speech Error: ${error.errorMsg}');
+          _log('ERROR: ${error.errorMsg} (permanent: ${error.permanent})');
           _isListening = false;
         },
         onStatus: (status) {
-          _log('Speech Status: $status');
+          _log('Status: $status');
           if (status == 'done' || status == 'notListening') {
             _isListening = false;
           }
@@ -53,16 +57,21 @@ class SpeechService {
       );
 
       if (_isInitialized) {
-        _log('Speech recognition initialized successfully');
+        _log('Speech init SUCCESS');
         final locales = await _speech.locales();
-        _log('Available locales: ${locales.map((l) => l.localeId).join(', ')}');
+        final arabicLocales = locales
+            .where((l) => l.localeId.startsWith('ar'))
+            .toList();
+        _log(
+          'Arabic locales: ${arabicLocales.map((l) => '${l.localeId} (${l.name})').join(', ')}',
+        );
       } else {
-        _log('Error: Speech recognition initialization failed');
+        _log('ERROR: Speech init FAILED');
       }
 
       return _isInitialized;
     } catch (e) {
-      _log('Error during init: $e');
+      _log('INIT ERROR: $e');
       return false;
     }
   }
@@ -72,65 +81,51 @@ class SpeechService {
     String localeId = 'ar-SA',
   }) async {
     if (!_isInitialized) {
-      _log('Error: Speech not initialized. Call init() first.');
+      _log('ERROR: Not initialized. Call init() first.');
       return;
     }
 
     if (_isListening) {
-      _log('Already listening...');
-      return;
+      _log('Already listening, stopping first...');
+      await stop();
     }
 
     try {
-      _log('Starting to listen with locale: $localeId');
+      _log('Starting listen (locale: $localeId)');
       _isListening = true;
+      _onResultCallback = onResult;
 
       await _speech.listen(
         onResult: (result) {
-          _log('Heard: ${result.recognizedWords}');
-          onResult(result.recognizedWords);
+          final words = result.recognizedWords;
+          if (words.isNotEmpty) {
+            _log('Result: "$words" (final: ${result.finalResult})');
+            _onResultCallback?.call(words);
+          }
         },
-        listenFor: const Duration(seconds: 30),
-        pauseFor: const Duration(seconds: 3),
+        listenFor: const Duration(minutes: 5),
+        pauseFor: const Duration(seconds: 5),
         partialResults: true,
-        onSoundLevelChange: (level) {
-          _log('Sound level: $level');
-        },
+        cancelOnError: true,
         localeId: localeId,
       );
     } catch (e) {
-      _log('Error during listen: $e');
+      _log('LISTEN ERROR: $e');
       _isListening = false;
     }
   }
 
   Future<void> stop() async {
-    if (!_isListening) {
-      return;
-    }
+    if (!_isListening) return;
 
     try {
-      _log('Stopping speech recognition...');
+      _log('Stopping...');
       await _speech.stop();
       _isListening = false;
-      _log('Speech recognition stopped');
+      _onResultCallback = null;
+      _log('Stopped');
     } catch (e) {
-      _log('Error stopping speech: $e');
-    }
-  }
-
-  Future<List<LocaleName>> getAvailableLocales() async {
-    if (!_isInitialized) {
-      _log('Error: Speech not initialized');
-      return [];
-    }
-
-    try {
-      final locales = await _speech.locales();
-      return locales;
-    } catch (e) {
-      _log('Error getting locales: $e');
-      return [];
+      _log('STOP ERROR: $e');
     }
   }
 

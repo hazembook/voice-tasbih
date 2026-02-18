@@ -16,7 +16,8 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   final ScrollController _scrollController = ScrollController();
   final List<String> _logs = [];
   StreamSubscription<String>? _logSubscription;
-  bool _isInitialized = false;
+  bool _isSpeechInitialized = false;
+  bool _isListening = false;
 
   @override
   void initState() {
@@ -27,16 +28,21 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   Future<void> _initializeSpeech() async {
     final speechService = ref.read(speechServiceProvider);
     _logSubscription = speechService.logStream.listen((log) {
-      setState(() {
-        _logs.add(log);
-      });
-      _scrollToBottom();
+      _addLog(log);
     });
 
-    await speechService.init();
+    final success = await speechService.init();
     setState(() {
-      _isInitialized = speechService.isInitialized;
+      _isSpeechInitialized = success;
     });
+    _addLog(success ? 'Speech init: SUCCESS' : 'Speech init: FAILED');
+  }
+
+  void _addLog(String message) {
+    setState(() {
+      _logs.add('[${DateTime.now().toString().substring(11, 19)}] $message');
+    });
+    _scrollToBottom();
   }
 
   void _scrollToBottom() {
@@ -51,6 +57,62 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
     });
   }
 
+  Future<void> _toggleListening() async {
+    final speechService = ref.read(speechServiceProvider);
+    final counterNotifier = ref.read(counterProvider.notifier);
+
+    if (_isListening) {
+      await speechService.stop();
+      setState(() {
+        _isListening = false;
+      });
+      _addLog('Mic OFF');
+    } else {
+      setState(() {
+        _isListening = true;
+      });
+      _addLog('Mic ON - Listening...');
+
+      await speechService.listen(
+        localeId: 'ar-SA',
+        onResult: (words) {
+          if (words.isNotEmpty) {
+            _checkForDhikr(words, counterNotifier);
+          }
+        },
+      );
+
+      if (mounted) {
+        setState(() {
+          _isListening = false;
+        });
+        _addLog('Mic OFF (auto)');
+      }
+    }
+  }
+
+  void _checkForDhikr(String text, CounterNotifier notifier) {
+    _addLog('Heard: "$text"');
+
+    final dhikrPatterns = [
+      'سبحان الله',
+      'subhan allah',
+      'subhanallah',
+      'subhan allah',
+      'glory be to allah',
+    ];
+
+    final lowerText = text.toLowerCase();
+    for (final pattern in dhikrPatterns) {
+      if (lowerText.contains(pattern.toLowerCase())) {
+        notifier.increment();
+        _addLog('MATCH: "$pattern" -> Count +1');
+        return;
+      }
+    }
+    _addLog('NO MATCH');
+  }
+
   @override
   void dispose() {
     _logSubscription?.cancel();
@@ -62,7 +124,6 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   Widget build(BuildContext context) {
     final counterState = ref.watch(counterProvider);
     final counterNotifier = ref.read(counterProvider.notifier);
-    final speechService = ref.read(speechServiceProvider);
 
     return Scaffold(
       backgroundColor: Colors.blueGrey[900],
@@ -70,6 +131,16 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
         title: const Text('Voice Tasbih'),
         backgroundColor: Colors.blueGrey[800],
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              counterNotifier.reset();
+              _addLog('Counter reset to 0');
+            },
+            tooltip: 'Reset',
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -99,41 +170,17 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
                     'Target: ${counterState.target}',
                     style: const TextStyle(color: Colors.white54, fontSize: 18),
                   ),
-                  const SizedBox(height: 40),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          counterNotifier.reset();
-                          _addLog('Counter reset');
-                        },
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Reset'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 20),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          counterNotifier.increment();
-                        },
-                        icon: const Icon(Icons.add),
-                        label: const Text('+1'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
+                  const SizedBox(height: 20),
+                  if (!_isSpeechInitialized)
+                    const Text(
+                      'Initializing speech...',
+                      style: TextStyle(color: Colors.orange, fontSize: 14),
+                    ),
                 ],
               ),
             ),
           ),
-          const Divider(color: Colors.white24),
+          const Divider(color: Colors.white24, height: 1),
           Container(
             height: 200,
             color: Colors.black,
@@ -141,13 +188,27 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Debug Console',
-                  style: TextStyle(
-                    color: Colors.green,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
+                Row(
+                  children: [
+                    const Text(
+                      'Debug Console',
+                      style: TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (_isListening)
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Expanded(
@@ -171,60 +232,15 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _isInitialized
-            ? () async {
-                if (counterState.isListening) {
-                  await speechService.stop();
-                  counterNotifier.toggleListening();
-                  _addLog('Listening stopped');
-                } else {
-                  counterNotifier.toggleListening();
-                  await speechService.listen(
-                    localeId: 'ar-SA',
-                    onResult: (words) {
-                      if (words.isNotEmpty) {
-                        _checkForDhikr(words, counterNotifier);
-                      }
-                    },
-                  );
-                  counterNotifier.toggleListening();
-                }
-              }
-            : null,
-        backgroundColor: counterState.isListening ? Colors.red : Colors.green,
+      floatingActionButton: FloatingActionButton.large(
+        onPressed: _isSpeechInitialized ? _toggleListening : null,
+        backgroundColor: _isListening ? Colors.red : Colors.green,
         child: Icon(
-          counterState.isListening ? Icons.mic_off : Icons.mic,
-          size: 32,
+          _isListening ? Icons.mic_off : Icons.mic,
+          size: 40,
           color: Colors.white,
         ),
       ),
     );
-  }
-
-  void _addLog(String message) {
-    setState(() {
-      _logs.add(message);
-    });
-    _scrollToBottom();
-  }
-
-  void _checkForDhikr(String text, CounterNotifier notifier) {
-    final lowerText = text.toLowerCase();
-    final dhikrPhrases = [
-      'سبحان الله',
-      'subhan allah',
-      'subhanallah',
-      'glory be to allah',
-    ];
-
-    for (final phrase in dhikrPhrases) {
-      if (lowerText.contains(phrase.toLowerCase())) {
-        notifier.increment();
-        _addLog('Detected: $phrase - Counter incremented');
-        return;
-      }
-    }
-    _addLog('Heard: $text (no match)');
   }
 }

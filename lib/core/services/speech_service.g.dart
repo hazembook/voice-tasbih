@@ -21,7 +21,7 @@ final class SpeechServiceProvider
         argument: null,
         retry: null,
         name: r'speechServiceProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -48,4 +48,4 @@ final class SpeechServiceProvider
   }
 }
 
-String _$speechServiceHash() => r'7ca93ea357a80b9faa63a68f86f14bca7cd13db0';
+String _$speechServiceHash() => r'd3db07e361df9cad1e8c65b75d5937d6a1678577';

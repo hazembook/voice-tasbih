@@ -20,7 +20,7 @@ final class CounterNotifierProvider
         argument: null,
         retry: null,
         name: r'counterProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -41,7 +41,7 @@ final class CounterNotifierProvider
   }
 }
 
-String _$counterNotifierHash() => r'a59075a53bbc2e2ae722158c62e1f592239b32d7';
+String _$counterNotifierHash() => r'f2cb688997d79df2ddd06bdfc1e67633a882ebc4';
 
 abstract class _$CounterNotifier extends $Notifier<CounterState> {
   CounterState build();

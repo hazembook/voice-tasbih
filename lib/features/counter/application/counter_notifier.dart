@@ -3,7 +3,7 @@ import 'package:voice_tasbih/features/counter/domain/models/counter_state.dart';
 
 part 'counter_notifier.g.dart';
 
-@riverpod
+@Riverpod(keepAlive: true)
 class CounterNotifier extends _$CounterNotifier {
   @override
   CounterState build() {
