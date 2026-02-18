@@ -187,10 +187,10 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
           if (_lastDetectedText == text) return;
           _lastDetectedText = text;
           _addLog('Heard: "$text"');
-        } else {
-          _lastDetectedText = null;
+          return;
         }
 
+        _lastDetectedText = null;
         notifier.increment();
         HapticFeedback.mediumImpact();
         _addLog('✓ ${counterState.count + 1}/${counterState.target}');
