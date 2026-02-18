@@ -26,7 +26,7 @@ class CounterNotifier extends _$CounterNotifier {
     state = state.copyWith(phrase: phrase);
   }
 
-  void toggleListening() {
-    state = state.copyWith(isListening: !state.isListening);
+  void setListening(bool isListening) {
+    state = state.copyWith(isListening: isListening);
   }
 }

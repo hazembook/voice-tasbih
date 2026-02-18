@@ -23,12 +23,22 @@ class SpeechService {
   bool _isInitialized = false;
   bool _isListening = false;
   Function(String)? _onResultCallback;
+  Function()? _onCancelCallback;
 
   bool get isInitialized => _isInitialized;
   bool get isListening => _isListening;
 
   void _log(String message) {
     _logController.add(message);
+  }
+
+  void _handleStop() {
+    if (_isListening) {
+      _isListening = false;
+      _onCancelCallback?.call();
+      _onResultCallback = null;
+      _onCancelCallback = null;
+    }
   }
 
   Future<bool> init() async {
@@ -46,12 +56,12 @@ class SpeechService {
       _isInitialized = await _speech.initialize(
         onError: (error) {
           _log('ERROR: ${error.errorMsg} (permanent: ${error.permanent})');
-          _isListening = false;
+          _handleStop();
         },
         onStatus: (status) {
           _log('Status: $status');
           if (status == 'done' || status == 'notListening') {
-            _isListening = false;
+            _handleStop();
           }
         },
       );
@@ -78,6 +88,7 @@ class SpeechService {
 
   Future<void> listen({
     required Function(String) onResult,
+    Function()? onCancel,
     String localeId = 'ar-SA',
   }) async {
     if (!_isInitialized) {
@@ -94,6 +105,7 @@ class SpeechService {
       _log('Starting listen (locale: $localeId)');
       _isListening = true;
       _onResultCallback = onResult;
+      _onCancelCallback = onCancel;
 
       await _speech.listen(
         onResult: (result) {
@@ -103,15 +115,15 @@ class SpeechService {
             _onResultCallback?.call(words);
           }
         },
-        listenFor: const Duration(minutes: 5),
-        pauseFor: const Duration(seconds: 5),
+        listenFor: const Duration(minutes: 10),
+        pauseFor: const Duration(seconds: 10),
         partialResults: true,
         cancelOnError: true,
         localeId: localeId,
       );
     } catch (e) {
       _log('LISTEN ERROR: $e');
-      _isListening = false;
+      _handleStop();
     }
   }
 
@@ -121,8 +133,7 @@ class SpeechService {
     try {
       _log('Stopping...');
       await _speech.stop();
-      _isListening = false;
-      _onResultCallback = null;
+      _handleStop();
       _log('Stopped');
     } catch (e) {
       _log('STOP ERROR: $e');

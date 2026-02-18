@@ -77,16 +77,16 @@ void main() {
       container.dispose();
     });
 
-    test('toggleListening toggles isListening flag', () {
+    test('setListening toggles isListening flag', () {
       final container = ProviderContainer();
       final notifier = container.read(counterProvider.notifier);
 
       expect(notifier.state.isListening, false);
 
-      notifier.toggleListening();
+      notifier.setListening(true);
       expect(notifier.state.isListening, true);
 
-      notifier.toggleListening();
+      notifier.setListening(false);
       expect(notifier.state.isListening, false);
 
       container.dispose();
