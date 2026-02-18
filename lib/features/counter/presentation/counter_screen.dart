@@ -378,7 +378,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
       child: Scaffold(
         backgroundColor: Colors.blueGrey[900],
         appBar: AppBar(
-          title: const Text('ذاكر'),
+          title: const Text('الذاكر'),
           centerTitle: true,
           backgroundColor: Colors.blueGrey[800],
           foregroundColor: Colors.white,

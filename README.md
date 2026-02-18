@@ -1,12 +1,12 @@
-# ذاكر (Dhakir)
+# الذاكر (Al-Dhakir)
 
 <p align="center">
-  <img src="assets/logo/main.png" width="120" alt="Dhakir icon">
+  <img src="assets/logo/main.png" width="120" alt="Al-Dhakir icon">
 </p>
 
-**ذاكر** - A Flutter app for counting Dhikr (Islamic remembrances) using offline Arabic voice recognition.
+**الذاكر** - A Flutter app for counting Dhikr (Islamic remembrances) using offline Arabic voice recognition.
 
-> The name "ذاكر" (Dhakir) means "the one who remembers Allah" (الذاكر لله), from the Quran: *يَا أَيُّهَا الَّذِينَ آمَنُوا اذْكُرُوا اللَّهَ ذِكْرًا كَثِيرًا*
+> The name "الذاكر" (Al-Dhakir) means "The Rememberer" - the one who remembers Allah, from the Quran: *يَا أَيُّهَا الَّذِينَ آمَنُوا اذْكُرُوا اللَّهَ ذِكْرًا كَثِيرًا*
 
 > 📖 عن النبي ﷺ: «أَيَعْجِزُ أَحَدُكُمْ أَنْ يَكْسِبَ كُلَّ يَوْمٍ أَلْفَ حَسَنَةٍ؟» قَالَ: «يُسَبِّحُ مِائَةَ تَسْبِيحَةٍ، فَيُكْتَبُ لَهُ أَلْفُ حَسَنَةٍ» [صحيح مسلم]
 
