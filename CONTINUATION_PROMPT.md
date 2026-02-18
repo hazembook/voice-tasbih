@@ -105,6 +105,17 @@ dart run build_runner build --delete-conflicting-outputs
 4. **Custom targets**: Allow user-defined target numbers
 5. **Multiple dhikr session**: Count different dhikr in one session
 6. **Better La ilaha detection**: Add more phonetic variants
+7. **Whisper (همس) detection**:
+   - Restore sound level indicator to show microphone input level
+   - Add sensitivity slider in settings to adjust detection threshold
+   - Platform channel to Android AudioManager for manual gain control
+   - Test if current Vosk model can detect whisper-level recitation
+   - Consider noise suppression toggle for quiet environments
+   - Implementation options:
+     - Use `flutter_audio_capture` or `record` package to get raw PCM amplitude
+     - Calculate RMS (Root Mean Square) of audio buffer for level display
+     - Visual indicator: animated bar above mic button that pulses with voice
+     - Settings: Low/Medium/High sensitivity presets
 
 ## Key Files to Read
 - `lib/core/services/vosk_speech_service.dart` - Vosk implementation
