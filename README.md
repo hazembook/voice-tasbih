@@ -2,6 +2,13 @@
 
 A Flutter app for counting Dhikr (Islamic remembrances) using offline Arabic voice recognition.
 
+<p align="center">
+  <img src="docs/screenshots/Screenshot_20260218_121320_com.tasbih.voice_tasbih.jpg" width="200" alt="Main screen">
+  <img src="docs/screenshots/Screenshot_20260218_121326_com.tasbih.voice_tasbih.jpg" width="200" alt="Dhikr selection">
+  <img src="docs/screenshots/Screenshot_20260218_121331_com.tasbih.voice_tasbih.jpg" width="200" alt="Listening">
+  <img src="docs/screenshots/Screenshot_20260218_121353_com.tasbih.voice_tasbih.jpg" width="200" alt="Counting">
+</p>
+
 ## Features
 
 - **Dhikr Selection**: سبحان الله, الحمد لله, الله أكبر, لا إله إلا الله
@@ -10,11 +17,23 @@ A Flutter app for counting Dhikr (Islamic remembrances) using offline Arabic voi
 - **Real-time Feedback**: Haptic feedback on each count
 - **Debug Console**: On-screen logs for troubleshooting
 
-## Setup
+## Download
+
+Download the latest APK from [GitHub Releases](https://github.com/hazembook/voice-tasbih/releases) or [GitLab Releases](https://gitlab.com/hazembook/voice-tasbih/-/releases).
+
+| Architecture | Device Type |
+|--------------|-------------|
+| `arm64-v8a` | Most modern phones (recommended) |
+| `armeabi-v7a` | Older 32-bit phones |
+
+## Build from Source
 
 ### 1. Clone the Repository
 ```bash
-git clone <repo-url>
+git clone https://github.com/hazembook/voice-tasbih.git
+# or
+git clone https://gitlab.com/hazembook/voice-tasbih.git
+
 cd voice-tasbih
 ```
 
@@ -85,8 +104,14 @@ assets/models/
 - Android SDK (for Android builds)
 - ~400MB storage (app + model)
 
+## Known Issues
+
+- **La ilaha illallah** (لا إله إلا الله) occasionally misrecognized due to phonetic complexity
+- **APK size** is large (~335MB) due to embedded Vosk Arabic model
+- **Noise sensitivity**: Background noise or nearby voices may cause recognition confusion, requiring mic restart to continue
+
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the **Waqf General Public License 2.0** ([English](LICENSE) | [Arabic](LICENSE.ar)).
 
 The Vosk Arabic model is licensed under Apache 2.0 - see https://alphacephei.com/vosk/models for details.
