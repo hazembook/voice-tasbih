@@ -3,10 +3,11 @@
 A Flutter app for counting Dhikr (Islamic remembrances) using offline Arabic voice recognition.
 
 <p align="center">
-  <img src="docs/screenshots/Screenshot_20260218_121320_com.tasbih.voice_tasbih.jpg" width="200" alt="Main screen">
-  <img src="docs/screenshots/Screenshot_20260218_121326_com.tasbih.voice_tasbih.jpg" width="200" alt="Dhikr selection">
-  <img src="docs/screenshots/Screenshot_20260218_121331_com.tasbih.voice_tasbih.jpg" width="200" alt="Listening">
-  <img src="docs/screenshots/Screenshot_20260218_121353_com.tasbih.voice_tasbih.jpg" width="200" alt="Counting">
+  <img src="docs/screenshots/Screenshot_20260218_121320_com.tasbih.voice_tasbih.jpg" width="180" alt="Main screen">
+  <img src="docs/screenshots/Screenshot_20260218_121326_com.tasbih.voice_tasbih.jpg" width="180" alt="Dhikr selection">
+  <img src="docs/screenshots/Screenshot_20260218_121331_com.tasbih.voice_tasbih.jpg" width="180" alt="Listening">
+  <img src="docs/screenshots/Screenshot_20260218_121353_com.tasbih.voice_tasbih.jpg" width="180" alt="Counting">
+  <img src="docs/screenshots/Screenshot_20260218_121427_com.tasbih.voice_tasbih.jpg" width="180" alt="Target reached">
 </p>
 
 ## Features
