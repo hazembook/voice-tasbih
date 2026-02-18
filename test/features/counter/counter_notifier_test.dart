@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:voice_tasbih/features/counter/application/counter_notifier.dart';
+import 'package:dhakir/features/counter/application/counter_notifier.dart';
 
 void main() {
   group('CounterNotifier', () {

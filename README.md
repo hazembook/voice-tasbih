@@ -1,13 +1,21 @@
-# Voice Tasbih
-
-A Flutter app for counting Dhikr (Islamic remembrances) using offline Arabic voice recognition.
+# ذاكر (Dhakir)
 
 <p align="center">
-  <img src="docs/screenshots/Screenshot_20260218_121320_com.tasbih.voice_tasbih.jpg" width="180" alt="Main screen">
-  <img src="docs/screenshots/Screenshot_20260218_121326_com.tasbih.voice_tasbih.jpg" width="180" alt="Dhikr selection">
-  <img src="docs/screenshots/Screenshot_20260218_121331_com.tasbih.voice_tasbih.jpg" width="180" alt="Listening">
-  <img src="docs/screenshots/Screenshot_20260218_121353_com.tasbih.voice_tasbih.jpg" width="180" alt="Counting">
-  <img src="docs/screenshots/Screenshot_20260218_121427_com.tasbih.voice_tasbih.jpg" width="180" alt="Target reached">
+  <img src="assets/logo/main.png" width="120" alt="Dhakir icon">
+</p>
+
+**ذاكر** - A Flutter app for counting Dhikr (Islamic remembrances) using offline Arabic voice recognition.
+
+> The name "ذاكر" (Dhakir) means "the one who remembers Allah" (الذاكر لله), from the Quran: *يَا أَيُّهَا الَّذِينَ آمَنُوا اذْكُرُوا اللَّهَ ذِكْرًا كَثِيرًا*
+
+> 📖 عن النبي ﷺ: «أَيَعْجِزُ أَحَدُكُمْ أَنْ يَكْسِبَ كُلَّ يَوْمٍ أَلْفَ حَسَنَةٍ؟» قَالَ: «يُسَبِّحُ مِائَةَ تَسْبِيحَةٍ، فَيُكْتَبُ لَهُ أَلْفُ حَسَنَةٍ» [صحيح مسلم]
+
+<p align="center">
+  <img src="docs/screenshots/Screenshot_20260218_121320_com.tasbih.voice_tasbih.jpg" width="160" alt="Main screen">
+  <img src="docs/screenshots/Screenshot_20260218_121326_com.tasbih.voice_tasbih.jpg" width="160" alt="Dhikr selection">
+  <img src="docs/screenshots/Screenshot_20260218_121331_com.tasbih.voice_tasbih.jpg" width="160" alt="Listening">
+  <img src="docs/screenshots/Screenshot_20260218_121353_com.tasbih.voice_tasbih.jpg" width="160" alt="Counting">
+  <img src="docs/screenshots/Screenshot_20260218_121427_com.tasbih.voice_tasbih.jpg" width="160" alt="Target reached">
 </p>
 
 ## Features

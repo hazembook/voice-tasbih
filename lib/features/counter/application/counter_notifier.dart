@@ -1,5 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:voice_tasbih/features/counter/domain/models/counter_state.dart';
+import 'package:dhakir/features/counter/domain/models/counter_state.dart';
 
 part 'counter_notifier.g.dart';
 

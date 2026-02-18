@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:voice_tasbih/core/services/vosk_speech_service.dart';
-import 'package:voice_tasbih/features/counter/application/counter_notifier.dart';
-import 'package:voice_tasbih/features/counter/domain/models/counter_state.dart';
+import 'package:dhakir/core/services/vosk_speech_service.dart';
+import 'package:dhakir/features/counter/application/counter_notifier.dart';
+import 'package:dhakir/features/counter/domain/models/counter_state.dart';
 
 class _DhikrOption {
   final String name;

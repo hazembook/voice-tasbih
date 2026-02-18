@@ -1,5 +1,5 @@
-name: voice_tasbih
-description: "A new Flutter project."
+name: dhakir
+description: "A Flutter app for counting Dhikr using offline Arabic voice recognition."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -47,15 +47,15 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
   flutter_lints: ^6.0.0
   build_runner: ^2.11.1
   riverpod_generator: ^4.0.3
   freezed: ^3.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  image_path: "assets/logo/main.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -70,6 +70,7 @@ flutter:
 
   assets:
     - assets/models/
+    - assets/logo/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

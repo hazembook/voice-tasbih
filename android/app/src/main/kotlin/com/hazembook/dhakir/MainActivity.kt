@@ -1,4 +1,4 @@
-package com.tasbih.voice_tasbih
+package com.hazembook.dhakir
 
 import io.flutter.embedding.android.FlutterActivity
 

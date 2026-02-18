@@ -1,6 +1,12 @@
-# Voice Tasbih v0.1.0 - Vosk Offline ASR
+# ذاكر (Dhakir) v0.1.1 - Branding Update
 
-First release with offline Arabic speech recognition for counting Dhikr.
+> «أَيَعْجِزُ أَحَدُكُمْ أَنْ يَكْسِبَ كُلَّ يَوْمٍ أَلْفَ حَسَنَةٍ؟» قَالَ: «يُسَبِّحُ مِائَةَ تَسْبِيحَةٍ، فَيُكْتَبُ لَهُ أَلْفُ حَسَنَةٍ» [صحيح مسلم]
+
+## Changes
+
+- App renamed to **ذاكر** (Dhakir - the one who remembers Allah)
+- New custom app icon
+- Package name updated to `com.hazembook.dhakir`
 
 ## Features
 
@@ -15,13 +21,14 @@ First release with offline Arabic speech recognition for counting Dhikr.
 
 | File | Architecture | Size | Device Type |
 |------|--------------|------|-------------|
-| `app-arm64-v8a-release.apk` | arm64-v8a | ~338 MB | Modern phones (recommended) |
-| `app-armeabi-v7a-release.apk` | armeabi-v7a | ~335 MB | Older 32-bit phones |
+| `app-arm64-v8a-release.apk` | arm64-v8a | ~340 MB | Modern phones (recommended) |
+| `app-armeabi-v7a-release.apk` | armeabi-v7a | ~337 MB | Older 32-bit phones |
 
 ## Known Issues
 
 - **La ilaha illallah** (لا إله إلا الله) occasionally misrecognized due to phonetic complexity
-- **APK size** is large (~335MB) due to embedded Vosk Arabic model
+- **APK size** is large (~340MB) due to embedded Vosk Arabic model
+- **Noise sensitivity**: Background noise or nearby voices may cause recognition confusion
 
 ## Requirements
 
