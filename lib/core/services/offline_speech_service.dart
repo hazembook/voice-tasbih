@@ -29,8 +29,6 @@ class OfflineSpeechService {
 
   final AudioRecorder _audioRecorder = AudioRecorder();
   sherpa.OfflineRecognizer? _recognizer;
-  sherpa.VoiceActivityDetector? _vad;
-  sherpa.CircularBuffer? _buffer;
 
   bool _isInitialized = false;
   bool _isListening = false;
@@ -146,26 +144,6 @@ class OfflineSpeechService {
 
       _recognizer = sherpa.OfflineRecognizer(config);
 
-      final vadConfig = sherpa.VadModelConfig(
-        sileroVad: sherpa.SileroVadModelConfig(
-          model: '$modelsPath/silero_vad.onnx',
-          threshold: 0.3,
-          minSilenceDuration: 1.0,
-          minSpeechDuration: 0.1,
-          maxSpeechDuration: 30.0,
-        ),
-        sampleRate: _sampleRate,
-        numThreads: 2,
-        debug: false,
-      );
-
-      _vad = sherpa.VoiceActivityDetector(
-        config: vadConfig,
-        bufferSizeInSeconds: 30.0,
-      );
-
-      _buffer = sherpa.CircularBuffer(capacity: _sampleRate * 30);
-
       _isInitialized = true;
       _log('Init OK');
       return true;
@@ -180,15 +158,13 @@ class OfflineSpeechService {
     required Function(String) onResult,
     Function()? onCancel,
   }) async {
-    if (!_isInitialized || _recognizer == null || _vad == null) {
+    if (!_isInitialized || _recognizer == null) {
       _log('Not initialized');
       return;
     }
 
     _stopRequested = false;
     _isListening = true;
-    _buffer?.reset();
-    _vad?.reset();
     _log('Listening...');
 
     try {
@@ -205,6 +181,10 @@ class OfflineSpeechService {
         ),
       );
 
+      // Process in 2-second chunks
+      final chunkSize = _sampleRate * 2;
+      final buffer = <double>[];
+
       await for (final chunk in stream) {
         if (_stopRequested) break;
 
@@ -212,30 +192,20 @@ class OfflineSpeechService {
         final level = _calculateLevel(samples);
         _soundLevelController.add(level);
 
-        _buffer?.push(samples);
-        _vad!.acceptWaveform(samples);
+        // Add to buffer
+        buffer.addAll(samples);
 
-        if (_vad!.isDetected()) {
-          _log('Speech detected');
-        }
-
-        while (!_vad!.isEmpty()) {
-          final segment = _vad!.front();
-          _log('Segment: ${segment.samples.length} samples');
-          if (segment.samples.isNotEmpty) {
-            _processSegment(segment.samples, onResult);
-          }
-          _vad!.pop();
+        // Process when buffer is full
+        if (buffer.length >= chunkSize) {
+          final toProcess = Float32List.fromList(buffer.sublist(0, chunkSize));
+          buffer.removeRange(0, chunkSize);
+          _processChunk(toProcess, onResult);
         }
       }
 
-      _vad?.flush();
-      while (_vad != null && !_vad!.isEmpty()) {
-        final segment = _vad!.front();
-        if (segment.samples.isNotEmpty) {
-          _processSegment(segment.samples, onResult);
-        }
-        _vad!.pop();
+      // Process remaining
+      if (buffer.isNotEmpty) {
+        _processChunk(Float32List.fromList(buffer), onResult);
       }
 
       await _audioRecorder.stop();
@@ -266,7 +236,7 @@ class OfflineSpeechService {
     return (sum / samples.length).clamp(0.0, 1.0);
   }
 
-  void _processSegment(Float32List samples, Function(String) onResult) {
+  void _processChunk(Float32List samples, Function(String) onResult) {
     if (_recognizer == null) return;
 
     try {
@@ -297,8 +267,6 @@ class OfflineSpeechService {
 
   void dispose() {
     _recognizer?.free();
-    _vad?.free();
-    _buffer?.free();
     _logController.close();
     _soundLevelController.close();
   }
