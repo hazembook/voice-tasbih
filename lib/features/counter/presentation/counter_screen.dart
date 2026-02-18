@@ -39,13 +39,23 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   static const _grammar = [
     'سبحان الله',
     'سبحان',
+    'سبحانه',
     'الحمد لله',
     'الحمد',
+    'لله',
     'الله أكبر',
     'الله اكبر',
     'اكبر',
+    'أكبر',
     'لا إله إلا الله',
     'لا اله الا الله',
+    'لا إله إلا',
+    'إله إلا الله',
+    'إلا الله',
+    'لا إلى الله',
+    'إلى الله',
+    'هاي الله',
+    'هذا الله',
   ];
 
   final List<_DhikrOption> _dhikrOptions = const [
@@ -62,12 +72,20 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
     _DhikrOption(
       name: 'Allahu Akbar',
       arabic: 'الله أكبر',
-      patterns: ['الله اكبر', 'الله أكبر', 'اكبر'],
+      patterns: ['الله اكبر', 'الله أكبر', 'اكبر', 'أكبر'],
     ),
     _DhikrOption(
       name: 'La ilaha illallah',
       arabic: 'لا إله إلا الله',
-      patterns: ['لا اله الا الله', 'لا إله إلا الله', 'لا اله'],
+      patterns: [
+        'لا إله إلا الله',
+        'لا اله الا الله',
+        'إله إلا الله',
+        'إلا الله',
+        'إله',
+        'إلى الله',
+        'لا إلى الله',
+      ],
     ),
   ];
 
@@ -183,7 +201,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
     final counterState = ref.read(counterProvider);
     final currentDhikr = _getCurrentDhikr(counterState.phrase);
 
-    final totalCount = _countOccurrences(text, currentDhikr.arabic);
+    final totalCount = _countDhikrOccurrences(text, currentDhikr);
     if (totalCount == 0) return;
 
     if (isPartial) {
@@ -221,6 +239,39 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
 
     _partialCount = 0;
     _addLog('Final: "$text"');
+  }
+
+  int _countDhikrOccurrences(String text, _DhikrOption dhikr) {
+    if (dhikr.arabic == 'لا إله إلا الله') {
+      return _countLaIlahaIllallah(text);
+    }
+    return _countOccurrences(text, dhikr.arabic);
+  }
+
+  int _countLaIlahaIllallah(String text) {
+    var count = 0;
+    var i = 0;
+    while (i < text.length) {
+      if (text.startsWith('لا إله إلا الله', i)) {
+        count++;
+        i += 'لا إله إلا الله'.length;
+      } else if (text.startsWith('لا اله الا الله', i)) {
+        count++;
+        i += 'لا اله الا الله'.length;
+      } else if (text.startsWith('إلا الله', i)) {
+        count++;
+        i += 'إلا الله'.length;
+      } else if (text.startsWith('الا الله', i)) {
+        count++;
+        i += 'الا الله'.length;
+      } else if (text.startsWith('إلى الله', i)) {
+        count++;
+        i += 'إلى الله'.length;
+      } else {
+        i++;
+      }
+    }
+    return count;
   }
 
   int _countOccurrences(String text, String pattern) {
