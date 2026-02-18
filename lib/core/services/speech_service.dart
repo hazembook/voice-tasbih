@@ -24,7 +24,7 @@ class SpeechService {
   bool _isListening = false;
   bool _userRequestedStop = false;
   String _localeId = 'ar-SA';
-  Function(String)? _onResultCallback;
+  Function(String, bool)? _onResultCallback;
   Function()? _onCancelCallback;
 
   bool get isInitialized => _isInitialized;
@@ -68,7 +68,6 @@ class SpeechService {
           }
         },
         onStatus: (status) {
-          _log('Status: $status');
           if (status == 'done' || status == 'notListening') {
             if (!_userRequestedStop) {
               _restartListening();
@@ -80,14 +79,7 @@ class SpeechService {
       );
 
       if (_isInitialized) {
-        _log('Speech init SUCCESS');
-        final locales = await _speech.locales();
-        final arabicLocales = locales
-            .where((l) => l.localeId.startsWith('ar'))
-            .toList();
-        _log(
-          'Arabic locales: ${arabicLocales.map((l) => '${l.localeId}').join(', ')}',
-        );
+        _log('Speech init: SUCCESS');
       } else {
         _log('ERROR: Speech init FAILED');
       }
@@ -102,8 +94,7 @@ class SpeechService {
   Future<void> _restartListening() async {
     if (_userRequestedStop) return;
 
-    _log('Auto-restarting listen...');
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 100));
 
     if (_userRequestedStop || _onResultCallback == null) return;
 
@@ -113,14 +104,13 @@ class SpeechService {
         onResult: (result) {
           final words = result.recognizedWords;
           if (words.isNotEmpty) {
-            _log('Result: "$words"');
-            _onResultCallback?.call(words);
+            _onResultCallback?.call(words, result.finalResult);
           }
         },
-        listenFor: const Duration(minutes: 10),
-        pauseFor: const Duration(seconds: 10),
+        listenFor: const Duration(minutes: 30),
+        pauseFor: const Duration(seconds: 30),
         partialResults: true,
-        cancelOnError: true,
+        cancelOnError: false,
         localeId: _localeId,
       );
     } catch (e) {
@@ -130,12 +120,12 @@ class SpeechService {
   }
 
   Future<void> listen({
-    required Function(String) onResult,
+    required Function(String, bool) onResult,
     Function()? onCancel,
     String localeId = 'ar-SA',
   }) async {
     if (!_isInitialized) {
-      _log('ERROR: Not initialized. Call init() first.');
+      _log('ERROR: Not initialized');
       return;
     }
 
@@ -145,21 +135,20 @@ class SpeechService {
     _onCancelCallback = onCancel;
     _isListening = true;
 
-    _log('Starting continuous listen (locale: $localeId)');
+    _log('Listening started');
 
     try {
       await _speech.listen(
         onResult: (result) {
           final words = result.recognizedWords;
           if (words.isNotEmpty) {
-            _log('Result: "$words"');
-            _onResultCallback?.call(words);
+            _onResultCallback?.call(words, result.finalResult);
           }
         },
-        listenFor: const Duration(minutes: 10),
-        pauseFor: const Duration(seconds: 10),
+        listenFor: const Duration(minutes: 30),
+        pauseFor: const Duration(seconds: 30),
         partialResults: true,
-        cancelOnError: true,
+        cancelOnError: false,
         localeId: _localeId,
       );
     } catch (e) {
@@ -170,12 +159,11 @@ class SpeechService {
 
   Future<void> stop() async {
     _userRequestedStop = true;
-    _log('User requested stop...');
+    _log('Stopping...');
 
     try {
       await _speech.stop();
       _handleStop(userRequested: true);
-      _log('Stopped');
     } catch (e) {
       _log('STOP ERROR: $e');
     }

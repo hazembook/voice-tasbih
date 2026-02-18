@@ -30,6 +30,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   final List<String> _logs = [];
   StreamSubscription<String>? _logSubscription;
   bool _isSpeechInitialized = false;
+  double _counterScale = 1.0;
 
   final List<_DhikrOption> _dhikrOptions = const [
     _DhikrOption(
@@ -133,8 +134,8 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
 
       await speechService.listen(
         localeId: 'ar-SA',
-        onResult: (words) {
-          if (words.isNotEmpty) {
+        onResult: (words, isFinal) {
+          if (isFinal && words.isNotEmpty) {
             _checkForDhikr(words, counterNotifier);
           }
         },
@@ -149,24 +150,36 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   }
 
   void _checkForDhikr(String text, CounterNotifier notifier) {
-    _addLog('Heard: "$text"');
-
     final counterState = ref.read(counterProvider);
     final currentDhikr = _getCurrentDhikr(counterState.phrase);
 
     for (final pattern in currentDhikr.patterns) {
       if (text.contains(pattern)) {
         notifier.increment();
-        _addLog('MATCH -> Count +1');
+        HapticFeedback.mediumImpact();
+        _addLog('✓ ${counterState.count + 1}/${counterState.target}');
+
+        setState(() {
+          _counterScale = 1.15;
+        });
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) {
+            setState(() {
+              _counterScale = 1.0;
+            });
+          }
+        });
 
         final newState = ref.read(counterProvider);
         if (newState.isTargetReached) {
-          _addLog('TARGET REACHED! Stopping...');
+          HapticFeedback.heavyImpact();
+          _addLog('🎉 Target reached!');
           _stopListening();
         }
         return;
       }
     }
+    _addLog('✗ "${text.substring(0, text.length > 20 ? 20 : text.length)}..."');
   }
 
   Future<void> _stopListening() async {
@@ -303,14 +316,19 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Text(
-                    '${counterState.count}',
-                    style: TextStyle(
-                      color: counterState.isTargetReached
-                          ? Colors.greenAccent
-                          : Colors.white,
-                      fontSize: 120,
-                      fontWeight: FontWeight.bold,
+                  AnimatedScale(
+                    scale: _counterScale,
+                    duration: const Duration(milliseconds: 100),
+                    curve: Curves.easeOut,
+                    child: Text(
+                      '${counterState.count}',
+                      style: TextStyle(
+                        color: counterState.isTargetReached
+                            ? Colors.greenAccent
+                            : Colors.white,
+                        fontSize: 120,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                   GestureDetector(
