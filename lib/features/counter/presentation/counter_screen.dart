@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:voice_tasbih/core/services/offline_speech_service.dart';
+import 'package:voice_tasbih/core/services/vosk_speech_service.dart';
 import 'package:voice_tasbih/features/counter/application/counter_notifier.dart';
 import 'package:voice_tasbih/features/counter/domain/models/counter_state.dart';
 
@@ -80,7 +80,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
       _isInitializing = true;
     });
 
-    final speechService = ref.read(offlineSpeechServiceProvider);
+    final speechService = ref.read(voskSpeechServiceProvider);
 
     _logSubscription = speechService.logStream.listen((log) {
       _addLog(log);
@@ -139,7 +139,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   }
 
   Future<void> _toggleListening() async {
-    final speechService = ref.read(offlineSpeechServiceProvider);
+    final speechService = ref.read(voskSpeechServiceProvider);
     final counterNotifier = ref.read(counterProvider.notifier);
     final currentState = ref.read(counterProvider);
 
@@ -199,7 +199,7 @@ class _CounterScreenState extends ConsumerState<CounterScreen> {
   }
 
   Future<void> _stopListening() async {
-    final speechService = ref.read(offlineSpeechServiceProvider);
+    final speechService = ref.read(voskSpeechServiceProvider);
     final counterNotifier = ref.read(counterProvider.notifier);
 
     await speechService.stop();
