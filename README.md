@@ -11,7 +11,7 @@
 > 📖 عن النبي ﷺ: «أَيَعْجِزُ أَحَدُكُمْ أَنْ يَكْسِبَ كُلَّ يَوْمٍ أَلْفَ حَسَنَةٍ؟» قَالَ: «يُسَبِّحُ مِائَةَ تَسْبِيحَةٍ، فَيُكْتَبُ لَهُ أَلْفُ حَسَنَةٍ» [صحيح مسلم]
 
 <p align="center">
-  <img src="docs/screenshots/dhakir_demo.gif" width="200" alt="Dhakir demo">
+  <img src="docs/demos/v0.1.1/dhakir_demo.gif" width="200" alt="Dhakir demo">
 </p>
 
 ## Features
