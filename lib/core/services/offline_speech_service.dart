@@ -60,11 +60,19 @@ class OfflineSpeechService {
       final decoderFile = File('${dir.path}/tiny-decoder.onnx');
       final vadFile = File('$modelsPath/silero_vad.onnx');
 
-      return await tokensFile.exists() &&
-          await encoderFile.exists() &&
-          await decoderFile.exists() &&
-          await vadFile.exists();
+      final tokensExists = await tokensFile.exists();
+      final encoderExists = await encoderFile.exists();
+      final decoderExists = await decoderFile.exists();
+      final vadExists = await vadFile.exists();
+
+      if (!tokensExists) _log('Missing: tokens.txt');
+      if (!encoderExists) _log('Missing: tiny-encoder.onnx');
+      if (!decoderExists) _log('Missing: tiny-decoder.onnx');
+      if (!vadExists) _log('Missing: silero_vad.onnx');
+
+      return tokensExists && encoderExists && decoderExists && vadExists;
     } catch (e) {
+      _log('Check error: $e');
       return false;
     }
   }
@@ -77,9 +85,11 @@ class OfflineSpeechService {
       final modelsPath = await _modelsPath;
       final whisperDir = Directory('$modelsPath/whisper-tiny');
 
-      if (!await whisperDir.exists()) {
-        await whisperDir.create(recursive: true);
+      // Clean up old files
+      if (await whisperDir.exists()) {
+        await whisperDir.delete(recursive: true);
       }
+      await whisperDir.create(recursive: true);
 
       // Download Whisper model
       onStatus?.call('Downloading Whisper model...');
@@ -103,6 +113,14 @@ class OfflineSpeechService {
       final vadFile = File('$modelsPath/silero_vad.onnx');
       success = await _downloadFile(vadUrl, vadFile, onProgress);
       if (!success) return -1;
+
+      // Verify files
+      onStatus?.call('Verifying...');
+      final downloaded = await isModelDownloaded();
+      if (!downloaded) {
+        _log('Verification failed');
+        return -1;
+      }
 
       onStatus?.call('Model ready');
       return 1.0;
@@ -155,18 +173,34 @@ class OfflineSpeechService {
       _log('Extracting files...');
       final archive = TarDecoder().decodeBytes(tarBytes);
 
+      final targetDirectory = Directory('$targetDir/whisper-tiny');
+      if (!await targetDirectory.exists()) {
+        await targetDirectory.create(recursive: true);
+      }
+
+      var fileCount = 0;
       for (final file in archive) {
-        final filePath = '$targetDir/${file.name}';
+        var filePath = file.name;
+
+        // Skip the top-level directory (e.g., sherpa-onnx-whisper-tiny/)
+        final firstSlash = filePath.indexOf('/');
+        if (firstSlash != -1) {
+          filePath = filePath.substring(firstSlash + 1);
+        }
+        if (filePath.isEmpty) continue;
+
+        final fullPath = '${targetDirectory.path}/$filePath';
         if (file.isFile) {
-          final outFile = File(filePath);
+          final outFile = File(fullPath);
           await outFile.parent.create(recursive: true);
           await outFile.writeAsBytes(file.content as List<int>);
+          fileCount++;
         } else {
-          await Directory(filePath).create(recursive: true);
+          await Directory(fullPath).create(recursive: true);
         }
       }
 
-      _log('Extraction complete');
+      _log('Extracted $fileCount files');
       return true;
     } catch (e) {
       _log('Extract error: $e');
