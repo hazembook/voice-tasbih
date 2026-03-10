@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:dhakir/features/counter/presentation/counter_screen.dart';
+import 'package:al_dhakir/features/counter/presentation/counter_screen.dart';
 
 void main() {
   runApp(const ProviderScope(child: MyApp()));
